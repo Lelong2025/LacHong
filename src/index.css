@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --blue: #1a56a0;
+  --blue-dark: #1443a0;
+  --blue-light: rgba(26, 86, 160, 0.12);
+  --gold: #f5b942;
+  --gold-dark: #e5a830;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-400: #9ca3af;
+  --gray-600: #6b7280;
+  --text: #1a1a1a;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--text);
+  background: #f6f7fc;
+}
+
+button, input, textarea, select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+h1, h2, h3, p {
+  margin-top: 0;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.splash {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: var(--blue);
+  font-weight: 700;
+}

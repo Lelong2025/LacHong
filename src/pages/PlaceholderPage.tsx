@@ -1,0 +1,1 @@
+export function PlaceholderPage({title}:{title:string}){return <><div className="page-heading"><div><h1>{title}</h1><p>Module đang sử dụng dữ liệu bảo mật từ Supabase.</p></div></div><section className="empty-panel"><h2>{title}</h2><p>Dữ liệu sẽ xuất hiện khi migration và seed được áp dụng.</p></section></>}

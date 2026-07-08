@@ -1,0 +1,19 @@
+project_id = "lachong"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+
+[db]
+port = 54322
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173/LacHong/"
+additional_redirect_urls = ["https://hieu-nguyen-lhu.github.io/LacHong/"]
+
+[storage]
+enabled = true
+file_size_limit = "5MiB"
