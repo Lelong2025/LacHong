@@ -1,5 +1,6 @@
 import cors from 'cors'
 import { randomUUID } from 'node:crypto'
+import dns from 'node:dns'
 import 'dotenv/config'
 import express from 'express'
 import nodemailer from 'nodemailer'
@@ -14,6 +15,7 @@ const required = (name: string) => {
 }
 
 const app = express()
+dns.setDefaultResultOrder('ipv4first')
 const port = Number(process.env.PORT ?? 3001)
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
 const publicSiteUrl = process.env.PUBLIC_SITE_URL ?? frontendOrigin
