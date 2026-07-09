@@ -44,13 +44,13 @@ app.use(cors({
   origin: frontendOrigin === '*'
     ? true
     : (origin, callback) => {
-        if (!origin || allowedOrigins.has(origin)) {
-          callback(null, true)
-          return
-        }
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true)
+        return
+      }
 
-        callback(new Error(`Origin ${origin} is not allowed by CORS`))
-      },
+      callback(new Error(`Origin ${origin} is not allowed by CORS`))
+    },
 }))
 app.use(express.json({ limit: '8mb' }))
 
@@ -237,7 +237,6 @@ app.post('/api/update-profile-settings', requireUser, async (req, res) => {
     .update({
       email,
       full_name: fullName || null,
-      updated_at: new Date().toISOString(),
     })
     .eq('id', currentUser.id)
 
@@ -706,7 +705,7 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
   // Thu hồi các lượt chia sẻ cũ trước khi tạo lượt chia sẻ mới
   await supabase
     .from('document_shares')
-    .update({ 
+    .update({
       revoked_at: new Date().toISOString(),
       assigned_by: currentUser.id
     })
@@ -726,7 +725,7 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
         client_id: assignee.id,
         assigned_by: currentUser.id
       })
-      
+
       // 2. Tạo thông báo in-app (Bỏ qua người thực hiện chính vì DB trigger tự sinh)
       if (assignee.id !== document.assignee_id) {
         await supabase.from('notifications').insert({
