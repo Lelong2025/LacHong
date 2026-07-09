@@ -111,7 +111,7 @@ async function requireUser(req: AuthedRequest, res: express.Response, next: expr
 }
 
 async function sendMail(to: string, subject: string, html: string) {
-  await mailer.sendMail({
+  return mailer.sendMail({
     from: {
       name: process.env.SMTP_FROM_NAME ?? 'He thong Lac Hong',
       address: required('SMTP_FROM'),
@@ -123,10 +123,15 @@ async function sendMail(to: string, subject: string, html: string) {
 }
 
 function sendMailInBackground(to: string, subject: string, html: string) {
-  void sendMail(to, subject, html).catch((error) => {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error(`Unable to send mail to ${to}: ${message}`)
-  })
+  console.log(`Queueing mail to ${to}: ${subject}`)
+  void sendMail(to, subject, html)
+    .then((info) => {
+      console.log(`Mail sent to ${to}: ${info.messageId || 'accepted by SMTP'}`)
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`Unable to send mail to ${to}: ${message}`)
+    })
 }
 
 async function ensureDocumentsBucket() {
@@ -258,6 +263,43 @@ app.post('/api/invite-user', requireUser, async (req, res) => {
   }
 
   res.json({ ok: true })
+})
+
+app.post('/api/test-mail', requireUser, async (req, res) => {
+  const currentUser = (req as AuthedRequest).user
+  if (!currentUser) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', currentUser.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    res.status(403).json({ error: 'Forbidden' })
+    return
+  }
+
+  const email = String(req.body?.email ?? currentUser.email ?? '').trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({ error: 'Email không hợp lệ.' })
+    return
+  }
+
+  try {
+    const info = await sendMail(
+      email,
+      '[Lạc Hồng] Kiểm tra gửi mail',
+      '<p>Email kiểm tra từ hệ thống Lạc Hồng.</p>',
+    )
+    res.json({ ok: true, messageId: info.messageId || null })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Không gửi được email.'
+    res.status(500).json({ error: message })
+  }
 })
 
 app.post('/api/update-profile-settings', requireUser, async (req, res) => {
