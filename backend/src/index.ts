@@ -19,9 +19,16 @@ dns.setDefaultResultOrder('ipv4first')
 const port = Number(process.env.PORT ?? 3001)
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
 const publicSiteUrl = process.env.PUBLIC_SITE_URL ?? frontendOrigin
+const normalizeOrigin = (origin: string) => {
+  try {
+    return new URL(origin).origin
+  } catch {
+    return origin
+  }
+}
 const allowedOrigins = new Set(
   [
-    ...frontendOrigin.split(',').map((origin) => origin.trim()).filter(Boolean),
+    ...frontendOrigin.split(',').map((origin) => origin.trim()).filter(Boolean).map(normalizeOrigin),
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'https://lelong2025.github.io',
