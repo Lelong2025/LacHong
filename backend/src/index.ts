@@ -40,13 +40,17 @@ const supabase = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVI
   realtime: { transport: WebSocket as unknown as typeof globalThis.WebSocket },
 })
 
-type SMTPTransportOptionsWithFamily = SMTPTransport.Options & { family: 4 }
+type SMTPTransportOptionsWithNetwork = SMTPTransport.Options & {
+  family: 4
+  localAddress: '0.0.0.0'
+}
 
-const mailerOptions: SMTPTransportOptionsWithFamily = {
+const mailerOptions: SMTPTransportOptionsWithNetwork = {
   host: required('SMTP_HOST'),
   port: Number(process.env.SMTP_PORT ?? 587),
   secure: process.env.SMTP_SECURE === 'true',
   family: 4,
+  localAddress: '0.0.0.0',
   connectionTimeout: 10_000,
   greetingTimeout: 10_000,
   socketTimeout: 20_000,
