@@ -98,10 +98,19 @@ export function DocumentsPage() {
   const [issuedAttachments, setIssuedAttachments] = useState<File[]>([])
   const [fileRefreshKey, setFileRefreshKey] = useState(0)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [savingDocument, setSavingDocument] = useState(false)
 
   const [selectedDoc, setSelectedDoc] = useState<DocumentRow | null>(null)
   const [docFiles, setDocFiles] = useState<{ id: string; name: string; object_path: string | null; file_kind: string }[]>([])
   const [loadingFiles, setLoadingFiles] = useState(false)
+
+  // Helper function to check if current user is in assignee list
+  const isUserAssignee = useCallback((doc: DocumentRow): boolean => {
+    if (!user) return false
+    if (!doc.assignee_name) return false
+    const assignees = parseAssigneeNames(doc.assignee_name)
+    return assignees.some(a => a.email.toLowerCase() === user.email?.toLowerCase())
+  }, [user])
 
 
   async function uploadFiles(documentId: string, files: File[], fileKind: 'attachment' | 'issued_attachment') {
@@ -216,17 +225,21 @@ export function DocumentsPage() {
     }
   }, [load])
 
+  const isAdmin = profile?.role === 'admin'
+
   const filteredItems = useMemo(() => {
     return allDocs.filter(doc => {
       const matchesType = !typeFilter || doc.type === typeFilter
       const matchesSearch = !search ||
         doc.title.toLowerCase().includes(search.toLowerCase()) ||
         (doc.description && doc.description.toLowerCase().includes(search.toLowerCase()))
-      return matchesType && matchesSearch
-    })
-  }, [allDocs, typeFilter, search])
 
-  const isAdmin = profile?.role === 'admin'
+      // Kiểm tra quyền xem: admin, người tạo, hoặc người có trong danh sách người thực hiện
+      const canView = isAdmin || doc.created_by === user?.id || isUserAssignee(doc)
+
+      return matchesType && matchesSearch && canView
+    })
+  }, [allDocs, typeFilter, search, isAdmin, user?.id, isUserAssignee])
 
   const deletableFilteredItems = useMemo(() => {
     return filteredItems.filter((document) => isAdmin || document.created_by === user?.id)
@@ -325,6 +338,8 @@ export function DocumentsPage() {
     event.preventDefault()
     if (!user) return
 
+    setSavingDocument(true)
+
     const formElement = event.currentTarget
     const form = new FormData(formElement)
     const content = String(form.get('content') || '').trim()
@@ -384,6 +399,8 @@ export function DocumentsPage() {
       const message = error instanceof Error ? error.message : 'Không thể tạo hồ sơ.'
       setError(message)
       notify(message, 'error')
+    } finally {
+      setSavingDocument(false)
     }
   }
 
@@ -709,8 +726,14 @@ export function DocumentsPage() {
               </div>
             </div>
             <div className="modal-form-footer">
-              <button type="button" className="btn-cancel" onClick={() => { setShow(false); resetCreateForm() }}>Hủy</button>
-              <button className="btn-submit">Lưu hồ sơ</button>
+              <button type="button" className="btn-cancel" onClick={() => { setShow(false); resetCreateForm() }} disabled={savingDocument}>Hủy</button>
+              <button className="btn-submit" disabled={savingDocument}>
+                {savingDocument ? (
+                  <>
+                    <span className="spinner"></span> Đang lưu...
+                  </>
+                ) : 'Lưu hồ sơ'}
+              </button>
             </div>
           </form>
         </div>

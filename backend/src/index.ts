@@ -235,8 +235,8 @@ app.post('/api/update-profile-settings', requireUser, async (req, res) => {
   const { error } = await supabase
     .from('profiles')
     .update({
-      email,
-      full_name: fullName || null,
+      email: email,
+      full_name: fullName.trim() || null,
     })
     .eq('id', currentUser.id)
 
@@ -277,7 +277,7 @@ app.post('/api/save-document', requireUser, async (req, res) => {
     return
   }
 
-  if (!title || !description) {
+  if (!description) {
     res.status(400).json({ error: 'Nội dung hồ sơ không được để trống.' })
     return
   }

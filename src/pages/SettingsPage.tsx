@@ -46,8 +46,18 @@ export function SettingsPage() {
     const nextEmail = email.trim().toLowerCase()
     const nextFullName = fullName.trim()
 
+    if (nextFullName === profile?.full_name && nextEmail === user.email) {
+      notify('Không có thay đổi để cập nhật', 'info')
+      return
+    }
+
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
       notify('Email không hợp lệ.', 'error')
+      return
+    }
+
+    if (nextFullName.length > 50) {
+      notify('Tên hiển thị không được vượt quá 50 ký tự', 'error')
       return
     }
 
