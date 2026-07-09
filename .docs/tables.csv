@@ -1,0 +1,90 @@
+Tên Bảng,Tên Cột,Kiểu Dữ Liệu,Cho phép Null?
+document_files,id,uuid,NO
+document_files,document_id,uuid,NO
+document_files,file_name,text,YES
+document_files,file_path,text,YES
+document_files,file_size,bigint,YES
+document_files,content_type,text,YES
+document_files,uploaded_by,uuid,YES
+document_files,created_at,timestamp with time zone,YES
+document_files,name,text,NO
+document_files,object_path,text,NO
+document_files,mime_type,text,YES
+document_files,size_bytes,integer,YES
+document_files,created_by,uuid,YES
+document_files,deleted_at,timestamp with time zone,YES
+document_files,deleted_by,uuid,YES
+document_files,file_kind,text,NO
+document_shares,id,uuid,NO
+document_shares,document_id,uuid,NO
+document_shares,shared_with,uuid,NO
+document_shares,shared_by,uuid,NO
+document_shares,created_at,timestamp with time zone,YES
+document_shares,client_id,uuid,YES
+document_shares,assigned_by,uuid,YES
+document_shares,assigned_at,timestamp with time zone,NO
+document_shares,revoked_at,timestamp with time zone,YES
+document_versions,id,uuid,NO
+document_versions,document_id,uuid,NO
+document_versions,version_number,integer,NO
+document_versions,content_snapshot,jsonb,YES
+document_versions,created_by,uuid,NO
+document_versions,created_at,timestamp with time zone,YES
+document_versions,version,integer,YES
+document_versions,snapshot,jsonb,YES
+documents,id,uuid,NO
+documents,title,text,NO
+documents,description,text,YES
+documents,status,USER-DEFINED,NO
+documents,created_by,uuid,NO
+documents,document_group,text,YES
+documents,created_at,timestamp with time zone,YES
+documents,updated_at,timestamp with time zone,YES
+documents,type,text,YES
+documents,code,text,YES
+documents,deleted_at,timestamp with time zone,YES
+documents,deleted_by,uuid,YES
+documents,assignee_name,text,YES
+documents,document_year,integer,YES
+documents,assignee_id,uuid,YES
+issuances,id,uuid,NO
+issuances,document_id,uuid,NO
+issuances,issuance_number,text,NO
+issuances,issued_by,uuid,NO
+issuances,issued_at,timestamp with time zone,YES
+issuances,notes,text,YES
+issuances,number,integer,YES
+issuances,year,integer,YES
+issuances,code,text,YES
+notifications,id,uuid,NO
+notifications,user_id,uuid,NO
+notifications,title,text,NO
+notifications,message,text,NO
+notifications,is_read,boolean,YES
+notifications,link,text,YES
+notifications,created_at,timestamp with time zone,YES
+notifications,type,text,YES
+notifications,data,jsonb,NO
+plans,id,uuid,NO
+plans,title,text,NO
+plans,owner_id,uuid,NO
+plans,progress,integer,NO
+plans,due_date,date,YES
+plans,created_at,timestamp with time zone,NO
+plans,updated_at,timestamp with time zone,NO
+plans,deleted_at,timestamp with time zone,YES
+plans,deleted_by,uuid,YES
+profiles,id,uuid,NO
+profiles,email,text,NO
+profiles,full_name,text,YES
+profiles,role,USER-DEFINED,NO
+profiles,is_active,boolean,YES
+profiles,created_at,timestamp with time zone,YES
+profiles,updated_at,timestamp with time zone,YES
+review_actions,id,uuid,NO
+review_actions,document_id,uuid,NO
+review_actions,action_type,text,NO
+review_actions,comment,text,YES
+review_actions,actor_id,uuid,NO
+review_actions,created_at,timestamp with time zone,YES
+review_actions,action,text,YES

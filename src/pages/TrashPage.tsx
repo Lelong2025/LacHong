@@ -1,7 +1,6 @@
-import { RotateCcw, Search, Trash2 } from 'lucide-react'
+import { Eye, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../components/EmptyState'
-import { useAuth } from '../contexts/AuthContext'
 import { useNotifier } from '../contexts/useNotifier'
 import { supabase } from '../lib/supabase'
 import { emitSessionExpired } from '../lib/sessionExpiry'
@@ -17,28 +16,45 @@ const typeLabels: Record<string, string> = {
 }
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL
+const documentContent = (document: DocumentRow) => document.description || document.title
 
 export function TrashPage() {
-  const { user } = useAuth()
   const { notify, confirmAction } = useNotifier()
   const [items, setItems] = useState<DocumentRow[]>([])
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
+  const [selectedDoc, setSelectedDoc] = useState<DocumentRow | null>(null)
+
+  async function callBackend<T = { ok: boolean }>(path: string, body: Record<string, unknown>): Promise<T> {
+    if (!backendUrl) throw new Error('Thiếu VITE_BACKEND_URL trong .env.')
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) throw new Error('Phiên đăng nhập không hợp lệ.')
+
+    const response = await fetch(`${backendUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(body),
+    })
+
+    const payload = await response.json().catch(() => ({})) as T & { error?: string }
+    if (!response.ok) throw new Error(payload.error || 'Backend xử lý thất bại.')
+    return payload
+  }
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('documents')
-      .select('*')
-      .not('deleted_at', 'is', null)
-      .eq('deleted_by', user?.id ?? '')
-      .order('deleted_at', { ascending: false })
-
-    if (error) {
+    try {
+      const payload = await callBackend<{ ok: boolean; documents: DocumentRow[] }>('/api/list-trash-documents', {})
+      setItems(payload.documents || [])
+      setError('')
+    } catch (error) {
       if (emitSessionExpired(error)) return
-      setError(error.message)
+      const message = error instanceof Error ? error.message : 'Không thể tải thùng rác.'
+      setError(message)
     }
-    else setItems((data || []) as DocumentRow[])
-  }, [user?.id])
+  }, [])
 
   useEffect(() => {
     void load()
@@ -62,19 +78,16 @@ export function TrashPage() {
       confirmText: 'Khôi phục',
     })
     if (!confirmed) return
-    const { error } = await supabase
-      .from('documents')
-      .update({ deleted_at: null, deleted_by: null })
-      .eq('id', document.id)
-      .eq('deleted_by', user?.id ?? '')
-
-    if (error) {
-      if (emitSessionExpired(error)) return
-      setError(error.message)
-      notify(error.message, 'error')
-    } else {
+    try {
+      await callBackend('/api/restore-document', { documentId: document.id })
+      setSelectedDoc(null)
       notify('Đã khôi phục hồ sơ.', 'success')
       void load()
+    } catch (error) {
+      if (emitSessionExpired(error)) return
+      const message = error instanceof Error ? error.message : 'Không thể khôi phục hồ sơ.'
+      setError(message)
+      notify(message, 'error')
     }
   }
 
@@ -87,20 +100,7 @@ export function TrashPage() {
     })
     if (!confirmed) return
     try {
-      if (!backendUrl) throw new Error('Thiếu VITE_BACKEND_URL trong .env.')
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) throw new Error('Phiên đăng nhập không hợp lệ.')
-
-      const response = await fetch(`${backendUrl}/api/delete-document-permanently`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ documentId: document.id }),
-      })
-      const payload = await response.json().catch(() => ({})) as { error?: string }
-      if (!response.ok) throw new Error(payload.error || 'Không thể xóa vĩnh viễn hồ sơ.')
+      await callBackend('/api/delete-document-permanently', { documentId: document.id })
       notify('Đã xóa vĩnh viễn hồ sơ.', 'success')
       void load()
     } catch (error) {
@@ -120,20 +120,7 @@ export function TrashPage() {
     })
     if (!confirmed) return
     try {
-      if (!backendUrl) throw new Error('Thiếu VITE_BACKEND_URL trong .env.')
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) throw new Error('Phiên đăng nhập không hợp lệ.')
-
-      const response = await fetch(`${backendUrl}/api/delete-trash-documents`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({}),
-      })
-      const payload = await response.json().catch(() => ({})) as { error?: string; deleted?: number }
-      if (!response.ok) throw new Error(payload.error || 'Không thể xóa toàn bộ thùng rác.')
+      const payload = await callBackend<{ ok: boolean; deleted: number }>('/api/delete-trash-documents', {})
       notify(`Đã xóa vĩnh viễn ${payload.deleted ?? items.length} hồ sơ.`, 'success')
       void load()
     } catch (error) {
@@ -165,31 +152,42 @@ export function TrashPage() {
         </label>
         <span>{filteredItems.length} hồ sơ</span>
       </section>
-      <section className="table-card">
-        <table>
+      <section className="table-card records-table-card">
+        <table className="records-table trash-table">
           <thead>
             <tr>
-              <th>Loại</th>
-              <th>Tiêu đề / Nội dung</th>
-              <th>Năm</th>
-              <th>Ngày xóa</th>
-              <th>Thao tác</th>
+              <th className="type-column">Loại</th>
+              <th className="content-column">Nội dung</th>
+              <th className="year-column">Năm</th>
+              <th className="deleted-date-column">Ngày xóa</th>
+              <th className="action-column">Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {filteredItems.map(document => (
               <tr key={document.id}>
-                <td>{typeLabels[document.type] || document.type}</td>
-                <td><b>{document.title}</b><small>{document.description}</small></td>
-                <td>{document.document_year || new Date(document.created_at).getFullYear()}</td>
-                <td>{document.deleted_at ? new Date(document.deleted_at).toLocaleDateString('vi-VN') : '—'}</td>
-                <td>
-                  <div className="row-actions">
-                    <button className="primary compact" title="Khôi phục hồ sơ" onClick={() => restore(document)} style={{ backgroundColor: '#087b38' }}>
-                      <RotateCcw />Khôi phục
+                <td className="type-column">{typeLabels[document.type] || document.type}</td>
+                <td className="content-column">
+                  <span
+                    className="document-summary hover-link"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setSelectedDoc(document)}
+                  >
+                    {documentContent(document)}
+                  </span>
+                </td>
+                <td className="year-column">{document.document_year || new Date(document.created_at).getFullYear()}</td>
+                <td className="deleted-date-column">{document.deleted_at ? new Date(document.deleted_at).toLocaleDateString('vi-VN') : '—'}</td>
+                <td className="action-column">
+                  <div className="row-actions record-row-actions trash-row-actions">
+                    <button className="ghost compact" title="Xem chi tiết" onClick={() => setSelectedDoc(document)}>
+                      <Eye />
                     </button>
-                    <button className="danger-icon text-button" title="Xóa vĩnh viễn" onClick={() => purge(document)}>
-                      <Trash2 />Xóa vĩnh viễn
+                    <button className="primary compact restore-icon-button" title="Khôi phục hồ sơ" onClick={() => restore(document)}>
+                      <RotateCcw />
+                    </button>
+                    <button className="danger-icon" title="Xóa vĩnh viễn" onClick={() => purge(document)}>
+                      <Trash2 />
                     </button>
                   </div>
                 </td>
@@ -199,6 +197,48 @@ export function TrashPage() {
           </tbody>
         </table>
       </section>
+
+      {selectedDoc && (
+        <div className="modal">
+          <div className="modal-container-style trash-detail-modal">
+            <div className="modal-form-header">
+              <h2>Chi tiết hồ sơ đã xóa</h2>
+              <button type="button" className="btn-close" onClick={() => setSelectedDoc(null)}><X /></button>
+            </div>
+            <div className="modal-form-body">
+              <div className="detail-meta-grid">
+                <div>
+                  <small>Ngày tạo</small>
+                  <strong>{new Date(selectedDoc.created_at).toLocaleDateString('vi-VN')}</strong>
+                </div>
+                <div>
+                  <small>Ngày xóa</small>
+                  <strong>{selectedDoc.deleted_at ? new Date(selectedDoc.deleted_at).toLocaleDateString('vi-VN') : '—'}</strong>
+                </div>
+                <div>
+                  <small>Loại hồ sơ</small>
+                  <strong>{typeLabels[selectedDoc.type] || selectedDoc.type}</strong>
+                </div>
+                <div>
+                  <small>Năm tài liệu</small>
+                  <strong>{selectedDoc.document_year || new Date(selectedDoc.created_at).getFullYear()}</strong>
+                </div>
+              </div>
+
+              <div className="detail-content-box">
+                <small>Nội dung chi tiết</small>
+                <div>{documentContent(selectedDoc)}</div>
+              </div>
+            </div>
+            <div className="modal-form-footer">
+              <button type="button" className="btn-cancel" onClick={() => setSelectedDoc(null)}>Đóng</button>
+              <button type="button" className="btn-submit restore-button" onClick={() => void restore(selectedDoc)}>
+                <RotateCcw />Khôi phục
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

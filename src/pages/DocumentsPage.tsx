@@ -30,6 +30,8 @@ const parseAssigneeNames = (value: string | null): AssigneeOption[] => {
   })
 }
 
+const documentContent = (document: DocumentRow) => document.description || document.title
+
 const readFileBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader()
   reader.onerror = () => reject(new Error(`Không đọc được file "${file.name}".`))
@@ -378,16 +380,14 @@ export function DocumentsPage() {
 
       // Gọi backend để thiết lập phân quyền (document_shares), in-app notifications, gửi email thông báo/lời mời
       const externalAssignees = selectedAssignees.filter(a => a.id !== user.id)
-      if (externalAssignees.length > 0) {
-        await callBackend('/api/setup-document-assignees', {
-          documentId,
-          assignees: externalAssignees.map(a => ({
-            id: a.id,
-            email: a.email,
-            name: a.full_name
-          }))
-        })
-      }
+      await callBackend('/api/setup-document-assignees', {
+        documentId,
+        assignees: externalAssignees.map(a => ({
+          id: a.id,
+          email: a.email,
+          name: a.full_name
+        }))
+      })
 
       notify(editingDoc ? 'Đã cập nhật hồ sơ.' : 'Đã tạo hồ sơ.', 'success')
       setShow(false)
@@ -567,8 +567,8 @@ export function DocumentsPage() {
         <span>{filteredItems.length} hồ sơ</span>
       </section>
       {error && <p className="error">{error}</p>}
-      <section className="table-card">
-        <table>
+      <section className="table-card records-table-card">
+        <table className="records-table documents-table">
           <thead>
             <tr>
               <th className="select-column">
@@ -580,10 +580,10 @@ export function DocumentsPage() {
                   onChange={toggleSelectAllDeletable}
                 />
               </th>
-              <th>Loại</th>
-              <th>Tiêu đề / Nội dung</th>
-              <th>Năm</th>
-              <th>Thao tác</th>
+              <th className="type-column">Loại</th>
+              <th className="content-column">Nội dung</th>
+              <th className="year-column">Năm</th>
+              <th className="action-column">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -602,20 +602,19 @@ export function DocumentsPage() {
                       />
                     )}
                   </td>
-                  <td>{labels[document.type] || document.type}</td>
-                  <td>
-                    <b
+                  <td className="type-column">{labels[document.type] || document.type}</td>
+                  <td className="content-column">
+                    <span
                       style={{ cursor: 'pointer' }}
                       onClick={() => handleViewDetail(document)}
-                      className="hover-link"
+                      className="document-summary hover-link"
                     >
-                      {document.title}
-                    </b>
-                    <small>{document.description}</small>
+                      {documentContent(document)}
+                    </span>
                   </td>
-                  <td>{document.document_year || new Date(document.created_at).getFullYear()}</td>
-                  <td>
-                    <div className="row-actions">
+                  <td className="year-column">{document.document_year || new Date(document.created_at).getFullYear()}</td>
+                  <td className="action-column">
+                    <div className="row-actions record-row-actions document-row-actions">
                       <button className="ghost compact" title="Xem chi tiết" onClick={() => handleViewDetail(document)}>
                         <Eye />
                       </button>
@@ -769,12 +768,15 @@ export function DocumentsPage() {
 
               <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--bg-card, #f8fafc)', borderRadius: '6px' }}>
                 <small style={{ color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Người thực hiện</small>
-                <strong>{selectedDoc.assignee_name || 'Không có người thực hiện cụ thể'}</strong>
-              </div>
-
-              <div style={{ marginBottom: '20px' }}>
-                <small style={{ color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Tiêu đề / Nội dung tóm tắt</small>
-                <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)' }}>{selectedDoc.title}</div>
+                {parseAssigneeNames(selectedDoc.assignee_name).length > 0 ? (
+                  <div className="assignee-detail-list">
+                    {parseAssigneeNames(selectedDoc.assignee_name).map((assignee) => (
+                      <div key={assignee.email}>- {assigneeLabel(assignee)}</div>
+                    ))}
+                  </div>
+                ) : (
+                  <strong>Không có người thực hiện cụ thể</strong>
+                )}
               </div>
 
               {selectedDoc.description && (

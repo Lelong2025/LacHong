@@ -603,8 +603,9 @@ td small {
 .row-actions {
   display: flex;
   align-items: center;
-  gap: .5rem;
-  flex-wrap: wrap
+  justify-content: center;
+  gap: .45rem;
+  flex-wrap: nowrap
 }
 
 .compact {
@@ -616,6 +617,151 @@ td small {
 .compact svg,
 .text-button svg {
   width: 16px
+}
+
+.records-table {
+  table-layout: fixed;
+  min-width: 760px;
+}
+
+.records-table th,
+.records-table td {
+  padding: .85rem 1rem;
+}
+
+.records-table .type-column {
+  width: 124px;
+}
+
+.records-table .content-column {
+  width: auto;
+  min-width: 0;
+}
+
+.records-table .year-column {
+  width: 82px;
+  text-align: center;
+}
+
+.records-table .deleted-date-column {
+  width: 118px;
+  text-align: center;
+}
+
+.action-column {
+  text-align: center;
+  width: 138px;
+}
+
+.documents-table .select-column {
+  width: 54px;
+}
+
+.record-row-actions .compact,
+.record-row-actions .danger-icon {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  flex: 0 0 auto;
+}
+
+.record-row-actions .compact svg,
+.record-row-actions .danger-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.record-row-actions .ghost.compact {
+  border-color: #d7e1f2;
+  background: #f8fbff;
+  color: #164877;
+}
+
+.record-row-actions .ghost.compact:hover {
+  background: #eaf2ff;
+  border-color: #aac4ec;
+}
+
+.record-row-actions .danger-icon:hover {
+  background: #fecaca;
+}
+
+.record-row-actions .restore-icon-button {
+  background: #e7f7ed;
+  color: #087b38;
+  box-shadow: none;
+}
+
+.record-row-actions .restore-icon-button:hover {
+  background: #d5f0df;
+}
+
+.document-summary {
+  display: -webkit-box;
+  max-width: 100%;
+  color: var(--text, #20283a);
+  font-weight: 600;
+  line-height: 1.45;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.assignee-detail-list {
+  display: grid;
+  gap: .35rem;
+  color: var(--text, #20283a);
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.trash-detail-modal {
+  max-width: 700px;
+  width: 90%;
+}
+
+.detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.detail-meta-grid small,
+.detail-content-box small {
+  color: var(--muted);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.detail-content-box>div {
+  white-space: pre-wrap;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--bg-input, #fff);
+  line-height: 1.5;
+}
+
+.restore-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  background: #087b38;
+}
+
+.restore-button:hover {
+  background: #06682f;
+}
+
+.restore-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .text-button {

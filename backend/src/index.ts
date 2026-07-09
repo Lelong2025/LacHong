@@ -194,6 +194,16 @@ async function permanentlyDeleteDocument(documentId: string) {
   return deleteError
 }
 
+async function getCurrentProfile(userId: string) {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id,email,full_name,role,is_active')
+    .eq('id', userId)
+    .single()
+
+  return data
+}
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true })
 })
@@ -664,6 +674,84 @@ app.post('/api/soft-delete-document', requireUser, async (req, res) => {
   res.json({ ok: true })
 })
 
+app.post('/api/list-trash-documents', requireUser, async (req, res) => {
+  const currentUser = (req as AuthedRequest).user
+  if (!currentUser) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  const profile = await getCurrentProfile(currentUser.id)
+
+  let query = supabase
+    .from('documents')
+    .select('*')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+
+  if (profile?.role !== 'admin') {
+    query = query.or(`deleted_by.eq.${currentUser.id},created_by.eq.${currentUser.id}`)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    res.status(400).json({ error: error.message })
+    return
+  }
+
+  res.json({ ok: true, documents: data || [] })
+})
+
+app.post('/api/restore-document', requireUser, async (req, res) => {
+  const currentUser = (req as AuthedRequest).user
+  const documentId = String(req.body?.documentId ?? '')
+
+  if (!currentUser) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  if (!documentId) {
+    res.status(400).json({ error: 'Thiếu mã hồ sơ.' })
+    return
+  }
+
+  const { data: document, error: documentError } = await supabase
+    .from('documents')
+    .select('id,created_by,deleted_by,deleted_at')
+    .eq('id', documentId)
+    .single()
+
+  if (documentError || !document) {
+    res.status(404).json({ error: 'Không tìm thấy hồ sơ.' })
+    return
+  }
+
+  if (!document.deleted_at) {
+    res.status(400).json({ error: 'Hồ sơ này không nằm trong thùng rác.' })
+    return
+  }
+
+  const profile = await getCurrentProfile(currentUser.id)
+  const allowed = profile?.role === 'admin' || document.deleted_by === currentUser.id || document.created_by === currentUser.id
+  if (!allowed) {
+    res.status(403).json({ error: 'Bạn không có quyền khôi phục hồ sơ này.' })
+    return
+  }
+
+  const { error } = await supabase
+    .from('documents')
+    .update({ deleted_at: null, deleted_by: null, updated_at: new Date().toISOString() })
+    .eq('id', documentId)
+
+  if (error) {
+    res.status(400).json({ error: error.message })
+    return
+  }
+
+  res.json({ ok: true })
+})
+
 app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
   const documentId = String(req.body?.documentId ?? '')
   const assignees = req.body?.assignees
@@ -718,18 +806,35 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
       continue
     }
 
-    if (assignee.id) {
+    let assigneeId = assignee.id ? String(assignee.id) : ''
+    let assigneeName = assignee.name ? String(assignee.name) : ''
+
+    if (!assigneeId) {
+      const { data: matchedProfile } = await supabase
+        .from('profiles')
+        .select('id,email,full_name,is_active')
+        .eq('email', email)
+        .eq('is_active', true)
+        .maybeSingle()
+
+      assigneeId = matchedProfile?.id || ''
+      assigneeName = assigneeName || matchedProfile?.full_name || ''
+    }
+
+    if (assigneeId) {
       // 1. Lưu thông tin chia sẻ tài liệu
       await supabase.from('document_shares').insert({
         document_id: documentId,
-        client_id: assignee.id,
+        client_id: assigneeId,
+        shared_with: assigneeId,
+        shared_by: currentUser.id,
         assigned_by: currentUser.id
       })
 
       // 2. Tạo thông báo in-app (Bỏ qua người thực hiện chính vì DB trigger tự sinh)
-      if (assignee.id !== document.assignee_id) {
+      if (assigneeId !== document.assignee_id) {
         await supabase.from('notifications').insert({
-          user_id: assignee.id,
+          user_id: assigneeId,
           type: 'document_assigned',
           title: 'Bạn được giao hồ sơ',
           message: document.title,
@@ -738,7 +843,7 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
       }
 
       // 3. Gửi email thông báo
-      const name = assignee.name || assignee.email
+      const name = assigneeName || assignee.email
       await sendMail(
         email,
         'Bạn được thêm vào hồ sơ',
