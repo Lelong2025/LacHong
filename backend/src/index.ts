@@ -846,10 +846,32 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
       const name = assigneeName || assignee.email
       await sendMail(
         email,
-        'Bạn được thêm vào hồ sơ',
-        `<p>Xin chào ${name},</p>
-         <p>Bạn vừa được thêm vào hồ sơ: <strong>${document.title}</strong>.</p>
-         <p>Vui lòng truy cập hệ thống Lạc Hồng để xem chi tiết.</p>`
+        '[Lạc Hồng] Bạn đã được thêm vào hồ sơ mới',
+        `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; color: #333;">
+          <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-top: 4px solid #0056b3;">
+            <h2 style="color: #0056b3; margin-top: 0; font-size: 22px; font-weight: 600;">HỆ THỐNG LẠC HỒNG</h2>
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+            <p style="font-size: 16px; line-height: 1.6;">Xin chào <strong>${name}</strong>,</p>
+            <p style="font-size: 15px; line-height: 1.6; color: #555;">
+              Bạn vừa được thêm vào thành viên của hồ sơ:
+            </p>
+            <div style="background-color: #f0f7ff; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0; border-radius: 4px;">
+              <span style="font-size: 13px; text-transform: uppercase; color: #007bff; font-weight: bold; display: block; margin-bottom: 5px;">Tên hồ sơ</span>
+              <strong style="font-size: 16px; color: #111;">${document.title}</strong>
+            </div>
+            <p style="font-size: 15px; line-height: 1.6; color: #555; margin-bottom: 25px;">
+              Vui lòng nhấn vào nút bên dưới để truy cập hệ thống và xem chi tiết hồ sơ.
+            </p>
+            <div style="text-align: center; margin: 30px 0 15px 0;">
+              <a href="${publicSiteUrl}" style="background-color: #0056b3; color: #ffffff; padding: 12px 30px; text-decoration: none; font-size: 15px; font-weight: bold; border-radius: 5px; display: inline-block;">
+                Xem chi tiết hồ sơ
+              </a>
+            </div>
+          </div>
+          <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #888;">
+            <p>Đây là email tự động từ hệ thống Lạc Hồng. Vui lòng không phản hồi email này.</p>
+          </div>
+        </div>`
       )
     } else {
       // User chưa đăng ký
