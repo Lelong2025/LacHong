@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import 'dotenv/config'
 import express from 'express'
 import nodemailer from 'nodemailer'
+import type SMTPTransport from 'nodemailer/lib/smtp-transport/index.js'
 import WebSocket from 'ws'
 import { createClient, type User } from '@supabase/supabase-js'
 
@@ -30,15 +31,20 @@ const supabase = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVI
   realtime: { transport: WebSocket as unknown as typeof globalThis.WebSocket },
 })
 
-const mailer = nodemailer.createTransport({
+type SMTPTransportOptionsWithFamily = SMTPTransport.Options & { family: 4 }
+
+const mailerOptions: SMTPTransportOptionsWithFamily = {
   host: required('SMTP_HOST'),
   port: Number(process.env.SMTP_PORT ?? 587),
   secure: process.env.SMTP_SECURE === 'true',
+  family: 4,
   auth: {
     user: required('SMTP_USER'),
     pass: required('SMTP_PASS'),
   },
-})
+}
+
+const mailer = nodemailer.createTransport(mailerOptions)
 
 app.use(cors({
   origin: frontendOrigin === '*'
