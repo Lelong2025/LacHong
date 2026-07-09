@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { EmptyState } from '../components/EmptyState'
 import { supabase } from '../lib/supabase'
+import { emitSessionExpired } from '../lib/sessionExpiry'
 import type { DocumentRow } from '../types'
 
 const typeLabels: Record<string, string> = {
@@ -32,7 +33,10 @@ export function ArchivePage() {
     if (search) query = query.ilike('title', `%${search}%`)
 
     const { data, error } = await query
-    if (error) setError(error.message)
+    if (error) {
+      if (emitSessionExpired(error)) return
+      setError(error.message)
+    }
     else setItems((data || []) as DocumentRow[])
   }, [isAdmin, user?.id, search])
 

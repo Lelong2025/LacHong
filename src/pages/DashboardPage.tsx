@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../components/EmptyState'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { emitSessionExpired } from '../lib/sessionExpiry'
 import type { DocumentRow } from '../types'
 
 const typeLabels: Record<string, string> = {
@@ -34,6 +35,15 @@ function assigneeDisplayName(value: string | null) {
     .join(', ') || 'Chưa gán'
 }
 
+function assigneeDisplayNames(value: string | null) {
+  if (!value) return ['Chưa gán']
+  const names = value
+    .split(',')
+    .map(item => item.trim().replace(/\s*\([^)]*@[^)]*\)/g, ''))
+    .filter(Boolean)
+  return names.length ? names : ['Chưa gán']
+}
+
 export function DashboardPage() {
   const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
@@ -50,7 +60,10 @@ export function DashboardPage() {
       .limit(500)
 
     const { data, error } = await query
-    if (error) setError(error.message)
+    if (error) {
+      if (emitSessionExpired(error)) return
+      setError(error.message)
+    }
     else setDocuments((data || []) as DocumentRow[])
   }, [])
 
@@ -93,8 +106,9 @@ export function DashboardPage() {
 
   const assigneeStats = useMemo(() => {
     const counts = scopedDocuments.reduce<Record<string, number>>((acc, doc) => {
-      const key = assigneeDisplayName(doc.assignee_name)
-      acc[key] = (acc[key] ?? 0) + 1
+      for (const key of assigneeDisplayNames(doc.assignee_name)) {
+        acc[key] = (acc[key] ?? 0) + 1
+      }
       return acc
     }, {})
     return Object.entries(counts).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 8)
@@ -142,9 +156,9 @@ export function DashboardPage() {
           <b>{scopedDocuments.length}</b>
         </article>
         <article className="metric-card dashboard-metric-card">
-          <Archive style={{ color: '#087b38' }} />
+          <Archive />
           <span>Tổng lưu trữ</span>
-          <b style={totalArchived > 0 ? { color: '#087b38' } : {}}>{totalArchived}</b>
+          <b>{totalArchived}</b>
         </article>
         {typeStats.map(({ key, label, icon: Icon, total }) => (
           <article className="metric-card dashboard-metric-card" key={key} style={total === 0 ? { opacity: 0.5 } : {}}>

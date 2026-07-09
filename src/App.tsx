@@ -2,11 +2,13 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { Layout } from './components/Layout'
 import { useAuth, type Profile } from './contexts/AuthContext'
+import { NotificationProvider } from './contexts/NotificationContext'
+import { useNotifier } from './contexts/useNotifier'
 import type { Session } from '@supabase/supabase-js'
 import AuthPage from './pages/AuthPage'
-import { ArchivePage } from './pages/ArchivePage'
 import { DashboardPage } from './pages/DashboardPage'
 import { DocumentsPage } from './pages/DocumentsPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { StatisticsPage } from './pages/StatisticsPage'
 import { TrashPage } from './pages/TrashPage'
 import { UsersPage } from './pages/UsersPage'
@@ -22,6 +24,7 @@ function getInitialTheme(): Theme {
 
 function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () => void }) {
   const { session, loading, profile, profileLockedOut, signOut } = useAuth()
+  const { notify } = useNotifier()
   const [delayedSession, setDelayedSession] = useState<Session | null>(null)
   const [delayedProfile, setDelayedProfile] = useState<Profile | null>(null)
   const [isTransitioning, setIsTransitioning] = useState(false)
@@ -56,6 +59,21 @@ function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () =
     }
   }, [profileLockedOut, signOut])
 
+  useEffect(() => {
+    let handling = false
+    const onSessionExpired = () => {
+      if (handling) return
+      handling = true
+      notify('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'warning')
+      void signOut().finally(() => {
+        window.setTimeout(() => { handling = false }, 1000)
+      })
+    }
+
+    window.addEventListener('lachong:session-expired', onSessionExpired)
+    return () => window.removeEventListener('lachong:session-expired', onSessionExpired)
+  }, [notify, signOut])
+
   if (loading) {
     return <div className="splash">Đang tải hệ thống...</div>
   }
@@ -66,9 +84,9 @@ function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () =
         theme={theme}
         onToggleTheme={onToggleTheme}
         onStartTransition={() => setIsTransitioning(true)}
-        onTransitionComplete={() => {
+        onTransitionComplete={(signedInSession) => {
           setIsTransitioning(false)
-          setDelayedSession(session)
+          setDelayedSession(signedInSession)
           setDelayedProfile(profile)
         }}
       />
@@ -115,8 +133,9 @@ function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () =
         <Route path="/" element={<DashboardPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/documents/:type" element={<Navigate to="/documents" replace />} />
-        <Route path="/archive" element={<ArchivePage />} />
+        <Route path="/archive" element={<Navigate to="/" replace />} />
         <Route path="/trash" element={<TrashPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/statistics" element={<StatisticsPage />} />
         {delayedProfile?.role === 'admin' && <Route path="/users" element={<UsersPage />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -134,8 +153,10 @@ export default function App() {
   }, [theme])
 
   return (
-    <HashRouter>
-      <Protected theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} />
-    </HashRouter>
+    <NotificationProvider>
+      <HashRouter>
+        <Protected theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} />
+      </HashRouter>
+    </NotificationProvider>
   )
 }

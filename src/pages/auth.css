@@ -173,6 +173,43 @@
   background-color: #ffb853; 
 }
 
+.forgot-password-link {
+  border: 0;
+  background: transparent;
+  color: #10528e;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 10px;
+  padding: 4px 8px;
+}
+
+.remember-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 14px;
+  color: #4b5563;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.remember-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: #164877;
+  cursor: pointer;
+}
+
+:root[data-theme='dark'] .remember-row {
+  color: #d1d5db;
+}
+
+.forgot-password-link:hover {
+  text-decoration: underline;
+}
+
 /* --- Thanh phân tách Chữ "Or" --- */
 .or-divider {
   display: flex;
@@ -293,6 +330,10 @@
   background-color: #3a3a3a;
   color: #f5f5f5;
   border: 1px solid #555555;
+}
+
+:root[data-theme='dark'] .forgot-password-link {
+  color: #f5f5f5;
 }
 
 /* ====================================================

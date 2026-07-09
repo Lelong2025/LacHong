@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { EmptyState } from '../components/EmptyState'
 import { supabase } from '../lib/supabase'
+import { emitSessionExpired } from '../lib/sessionExpiry'
 import type { DocumentRow } from '../types'
 
 const typeList = [
@@ -16,13 +17,13 @@ const typeList = [
 
 const chartColors = ['#164877', '#087b38', '#9a6200', '#7c3aed', '#0f766e', '#b42318']
 
-function assigneeDisplayName(value: string | null) {
-  if (!value) return 'Chưa gán'
-  return value
+function assigneeDisplayNames(value: string | null) {
+  if (!value) return ['Chưa gán']
+  const names = value
     .split(',')
     .map(item => item.trim().replace(/\s*\([^)]*@[^)]*\)/g, ''))
     .filter(Boolean)
-    .join(', ') || 'Chưa gán'
+  return names.length ? names : ['Chưa gán']
 }
 
 export function StatisticsPage() {
@@ -41,7 +42,10 @@ export function StatisticsPage() {
       .limit(500)
 
     const { data, error } = await query
-    if (error) setError(error.message)
+    if (error) {
+      if (emitSessionExpired(error)) return
+      setError(error.message)
+    }
     else setDocuments((data || []) as DocumentRow[])
   }, [])
 
@@ -78,8 +82,9 @@ export function StatisticsPage() {
 
   const assigneeStats = useMemo(() => {
     const counts = scopedDocuments.reduce<Record<string, number>>((acc, doc) => {
-      const key = assigneeDisplayName(doc.assignee_name)
-      acc[key] = (acc[key] ?? 0) + 1
+      for (const key of assigneeDisplayNames(doc.assignee_name)) {
+        acc[key] = (acc[key] ?? 0) + 1
+      }
       return acc
     }, {})
     return Object.entries(counts).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10)

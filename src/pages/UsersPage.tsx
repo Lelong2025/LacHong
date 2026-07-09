@@ -1,6 +1,7 @@
 import { Search, ShieldCheck, ShieldOff } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { emitSessionExpired } from '../lib/sessionExpiry'
 import type { Profile } from '../types'
 
 export function UsersPage() {
@@ -12,7 +13,10 @@ export function UsersPage() {
     let query = supabase.from('profiles').select('*').order('created_at', { ascending: false })
     if (search) query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`)
     const { data, error } = await query
-    if (error) setError(error.message)
+    if (error) {
+      if (emitSessionExpired(error)) return
+      setError(error.message)
+    }
     else setItems((data || []) as Profile[])
   }, [search])
 
@@ -26,7 +30,10 @@ export function UsersPage() {
       .update({ is_active: !profile.is_active })
       .eq('id', profile.id)
 
-    if (error) setError(error.message)
+    if (error) {
+      if (emitSessionExpired(error)) return
+      setError(error.message)
+    }
     else setItems((rows) => rows.map((row) => row.id === profile.id ? { ...row, is_active: !row.is_active } : row))
   }
 

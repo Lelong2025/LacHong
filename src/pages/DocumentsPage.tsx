@@ -1,8 +1,11 @@
 import { Eye, FilePlus2, Search, Trash2, UploadCloud, X, Send, Stamp, CheckCircle2, FileText, Clock3, Hash, FolderOpen, Download, Pencil } from 'lucide-react'
 import { useCallback, useEffect, useState, useMemo, type FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { useNotifier } from '../contexts/useNotifier'
 import { EmptyState } from '../components/EmptyState'
+import { ListFileDoc } from '../components/ListFileDoc'
 import { supabase } from '../lib/supabase'
+import { emitSessionExpired } from '../lib/sessionExpiry'
 import type { AssigneeOption, DocumentRow } from '../types'
 
 const labels: Record<string, string> = {
@@ -37,6 +40,26 @@ const readFileBase64 = (file: File) => new Promise<string>((resolve, reject) => 
   reader.readAsDataURL(file)
 })
 
+function downloadBlob(blob: Blob, fileName: string) {
+  const objectUrl = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = fileName || 'download'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(objectUrl)
+}
+
+function base64ToBlob(contentBase64: string, mimeType: string) {
+  const binary = atob(contentBase64)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  return new Blob([bytes], { type: mimeType || 'application/octet-stream' })
+}
+
 function FileDropzone({ label, files, onChange }: { label: string; files: File[]; onChange: (files: File[]) => void }) {
   const [dragging, setDragging] = useState(false)
   const addFiles = (list: FileList | null) => {
@@ -60,6 +83,7 @@ function FileDropzone({ label, files, onChange }: { label: string; files: File[]
 
 export function DocumentsPage() {
   const { user, profile } = useAuth()
+  const { notify, confirmAction } = useNotifier()
   const [allDocs, setAllDocs] = useState<DocumentRow[]>([])
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
@@ -72,9 +96,11 @@ export function DocumentsPage() {
   const [inviteMessage, setInviteMessage] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
   const [issuedAttachments, setIssuedAttachments] = useState<File[]>([])
+  const [fileRefreshKey, setFileRefreshKey] = useState(0)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const [selectedDoc, setSelectedDoc] = useState<DocumentRow | null>(null)
-  const [docFiles, setDocFiles] = useState<{ id: string; name: string; object_path: string; file_kind: string; url?: string }[]>([])
+  const [docFiles, setDocFiles] = useState<{ id: string; name: string; object_path: string | null; file_kind: string }[]>([])
   const [loadingFiles, setLoadingFiles] = useState(false)
 
 
@@ -93,6 +119,41 @@ export function DocumentsPage() {
         contentBase64: await readFileBase64(file),
       })
     }
+  }
+
+  async function removeExistingFile(fileId: string) {
+    if (!editingDoc) return
+    const confirmed = await confirmAction({
+      title: 'Xóa file khỏi hồ sơ?',
+      message: 'File sẽ bị xóa khỏi hồ sơ hiện tại.',
+      confirmText: 'Xóa file',
+      danger: true,
+    })
+    if (!confirmed) return
+    try {
+      await callBackend('/api/delete-document-file', { fileId })
+      notify('Đã xóa file khỏi hồ sơ.', 'success')
+      setFileRefreshKey((key) => key + 1)
+      if (selectedDoc) void handleViewDetail(selectedDoc)
+    } catch (error) {
+      if (emitSessionExpired(error)) return
+      const message = error instanceof Error ? error.message : 'Không thể xóa file.'
+      setError(message)
+      notify(message, 'error')
+    }
+  }
+
+  async function downloadDocumentFile(fileId: string) {
+    const payload = await callBackend<{
+      ok: boolean
+      name: string
+      mimeType: string
+      contentBase64: string
+    }>('/api/download-document-file', { fileId })
+
+    const blob = base64ToBlob(payload.contentBase64, payload.mimeType)
+    if (blob.size === 0) throw new Error('File tải về đang rỗng.')
+    downloadBlob(blob, payload.name)
   }
 
   const resetCreateForm = () => {
@@ -120,7 +181,11 @@ export function DocumentsPage() {
     })
 
     const payload = await response.json().catch(() => ({})) as T & { error?: string }
-    if (!response.ok) throw new Error(payload.error || 'Backend xử lý thất bại.')
+    if (!response.ok) {
+      const message = payload.error || 'Backend xử lý thất bại.'
+      if (response.status === 401) emitSessionExpired(message)
+      throw new Error(message)
+    }
     return payload
   }
 
@@ -132,7 +197,10 @@ export function DocumentsPage() {
       .order('updated_at', { ascending: false })
 
     const { data, error } = await query
-    if (error) setError(error.message)
+    if (error) {
+      if (emitSessionExpired(error)) return
+      setError(error.message)
+    }
     else setAllDocs((data || []) as DocumentRow[])
   }, [])
 
@@ -158,6 +226,26 @@ export function DocumentsPage() {
     })
   }, [allDocs, typeFilter, search])
 
+  const isAdmin = profile?.role === 'admin'
+
+  const deletableFilteredItems = useMemo(() => {
+    return filteredItems.filter((document) => isAdmin || document.created_by === user?.id)
+  }, [filteredItems, isAdmin, user?.id])
+
+  const selectedDeletableItems = useMemo(() => {
+    return deletableFilteredItems.filter((document) => selectedIds.has(document.id))
+  }, [deletableFilteredItems, selectedIds])
+
+  const allDeletableSelected = deletableFilteredItems.length > 0 && selectedDeletableItems.length === deletableFilteredItems.length
+
+  useEffect(() => {
+    setSelectedIds((current) => {
+      const existingIds = new Set(allDocs.map((document) => document.id))
+      const next = new Set([...current].filter((id) => existingIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [allDocs])
+
   const typeCounts = useMemo(() => {
     return allDocs.reduce<Record<string, number>>((acc, doc) => {
       acc[doc.type] = (acc[doc.type] ?? 0) + 1
@@ -176,12 +264,9 @@ export function DocumentsPage() {
         .eq('document_id', doc.id)
         .is('deleted_at', null)
       if (error) throw error
-      const filesWithUrls = await Promise.all((data || []).map(async (file) => {
-        const { data: signed } = await supabase.storage.from('documents').createSignedUrl(file.object_path, 60 * 60)
-        return { ...file, url: signed?.signedUrl }
-      }))
-      setDocFiles(filesWithUrls)
+      setDocFiles((data || []) as { id: string; name: string; object_path: string | null; file_kind: string }[])
     } catch (err) {
+      if (emitSessionExpired(err)) return
       console.error('Lỗi khi tải file đính kèm:', err)
     } finally {
       setLoadingFiles(false)
@@ -289,12 +374,16 @@ export function DocumentsPage() {
         })
       }
 
+      notify(editingDoc ? 'Đã cập nhật hồ sơ.' : 'Đã tạo hồ sơ.', 'success')
       setShow(false)
       formElement.reset()
       resetCreateForm()
       void load()
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Không thể tạo hồ sơ.')
+      if (emitSessionExpired(error)) return
+      const message = error instanceof Error ? error.message : 'Không thể tạo hồ sơ.'
+      setError(message)
+      notify(message, 'error')
     }
   }
 
@@ -316,22 +405,84 @@ export function DocumentsPage() {
       id: index === 0 ? document.assignee_id || undefined : undefined,
     })) : [{ id: user?.id, email: user?.email || profile?.email || '', full_name: profile?.full_name || null }])
     setShow(true)
+    setFileRefreshKey((key) => key + 1)
   }
 
 
 
   async function remove(document: DocumentRow) {
-    if (!confirm(`Xóa hồ sơ "${document.title}"?`)) return
-    const { error } = await supabase
-      .from('documents')
-      .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
-      .eq('id', document.id)
-
-    if (error) setError(error.message)
-    else void load()
+    const confirmed = await confirmAction({
+      title: 'Xóa hồ sơ?',
+      message: `Xóa hồ sơ "${document.title}"? Hồ sơ sẽ được chuyển vào thùng rác.`,
+      confirmText: 'Xóa hồ sơ',
+      danger: true,
+    })
+    if (!confirmed) return
+    try {
+      await callBackend('/api/soft-delete-document', { documentId: document.id })
+      notify('Đã chuyển hồ sơ vào thùng rác.', 'success')
+      void load()
+    } catch (error) {
+      if (emitSessionExpired(error)) return
+      const message = error instanceof Error ? error.message : 'Không thể xóa hồ sơ.'
+      setError(message)
+      notify(message, 'error')
+    }
   }
 
-  const isAdmin = profile?.role === 'admin'
+  function toggleSelect(documentId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(documentId)) next.delete(documentId)
+      else next.add(documentId)
+      return next
+    })
+  }
+
+  function toggleSelectAllDeletable() {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (allDeletableSelected) {
+        deletableFilteredItems.forEach((document) => next.delete(document.id))
+      } else {
+        deletableFilteredItems.forEach((document) => next.add(document.id))
+      }
+      return next
+    })
+  }
+
+  async function removeSelected() {
+    if (!selectedDeletableItems.length) {
+      notify('Chọn ít nhất một hồ sơ có quyền xóa.', 'warning')
+      return
+    }
+
+    const confirmed = await confirmAction({
+      title: `Xóa ${selectedDeletableItems.length} hồ sơ?`,
+      message: 'Các hồ sơ được chọn sẽ được chuyển vào thùng rác.',
+      confirmText: 'Xóa đã chọn',
+      danger: true,
+    })
+    if (!confirmed) return
+
+    try {
+      for (const document of selectedDeletableItems) {
+        await callBackend('/api/soft-delete-document', { documentId: document.id })
+      }
+      setSelectedIds((current) => {
+        const next = new Set(current)
+        selectedDeletableItems.forEach((document) => next.delete(document.id))
+        return next
+      })
+      notify(`Đã chuyển ${selectedDeletableItems.length} hồ sơ vào thùng rác.`, 'success')
+      void load()
+    } catch (error) {
+      if (emitSessionExpired(error)) return
+      const message = error instanceof Error ? error.message : 'Không thể xóa các hồ sơ đã chọn.'
+      setError(message)
+      notify(message, 'error')
+    }
+  }
 
   const typeList = [
     { key: 'totrinh', label: 'Tờ trình', icon: Send },
@@ -390,6 +541,12 @@ export function DocumentsPage() {
           <Search />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo tiêu đề hoặc nội dung..." />
         </label>
+        {selectedDeletableItems.length > 0 && (
+          <button type="button" className="danger-icon text-button bulk-delete-button" onClick={() => void removeSelected()}>
+            <Trash2 />
+            Xóa {selectedDeletableItems.length} hồ sơ
+          </button>
+        )}
         <span>{filteredItems.length} hồ sơ</span>
       </section>
       {error && <p className="error">{error}</p>}
@@ -397,6 +554,15 @@ export function DocumentsPage() {
         <table>
           <thead>
             <tr>
+              <th className="select-column">
+                <input
+                  type="checkbox"
+                  aria-label="Chọn tất cả hồ sơ có thể xóa"
+                  checked={allDeletableSelected}
+                  disabled={!deletableFilteredItems.length}
+                  onChange={toggleSelectAllDeletable}
+                />
+              </th>
               <th>Loại</th>
               <th>Tiêu đề / Nội dung</th>
               <th>Năm</th>
@@ -409,6 +575,16 @@ export function DocumentsPage() {
               const canDelete = isAdmin || document.created_by === user?.id
               return (
                 <tr key={document.id}>
+                  <td className="select-column">
+                    {canDelete && (
+                      <input
+                        type="checkbox"
+                        aria-label={`Chọn hồ sơ ${document.title}`}
+                        checked={selectedIds.has(document.id)}
+                        onChange={() => toggleSelect(document.id)}
+                      />
+                    )}
+                  </td>
                   <td>{labels[document.type] || document.type}</td>
                   <td>
                     <b
@@ -441,7 +617,7 @@ export function DocumentsPage() {
                 </tr>
               )
             })}
-            {!filteredItems.length && <tr><td colSpan={4}><EmptyState message="Chưa có hồ sơ nào." /></td></tr>}
+            {!filteredItems.length && <tr><td colSpan={5}><EmptyState message="Chưa có hồ sơ nào." /></td></tr>}
           </tbody>
         </table>
       </section>
@@ -522,8 +698,14 @@ export function DocumentsPage() {
                 </div>
               </div>
               <div className="document-file-grid" style={{ marginTop: '24px' }}>
-                <FileDropzone label="Đính kèm (mọi định dạng)" files={attachments} onChange={setAttachments} />
-                <FileDropzone label="Tệp lưu trữ chính thức (mọi định dạng)" files={issuedAttachments} onChange={setIssuedAttachments} />
+                <div>
+                  <FileDropzone label="Đính kèm (mọi định dạng)" files={attachments} onChange={setAttachments} />
+                  {editingDoc && <ListFileDoc documentId={editingDoc.id} refreshKey={fileRefreshKey} pendingFiles={attachments.map(file => ({ name: file.name, kind: 'attachment' }))} fileKind="attachment" onRemoveExistingFile={removeExistingFile} downloadFile={downloadDocumentFile} />}
+                </div>
+                <div>
+                  <FileDropzone label="Tệp lưu trữ chính thức (mọi định dạng)" files={issuedAttachments} onChange={setIssuedAttachments} />
+                  {editingDoc && <ListFileDoc documentId={editingDoc.id} refreshKey={fileRefreshKey} pendingFiles={issuedAttachments.map(file => ({ name: file.name, kind: 'issued_attachment' }))} fileKind="issued_attachment" onRemoveExistingFile={removeExistingFile} downloadFile={downloadDocumentFile} />}
+                </div>
               </div>
             </div>
             <div className="modal-form-footer">
@@ -619,10 +801,13 @@ export function DocumentsPage() {
                               {isIssued ? 'Tệp lưu trữ chính thức' : 'Tài liệu đính kèm'}
                             </span>
                           </div>
-                          <a
-                            href={file.url || '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void downloadDocumentFile(file.id).catch((error) => {
+                                notify(error instanceof Error ? error.message : 'Không tải được file.', 'error')
+                              })
+                            }}
                             className="btn-download"
                             style={{
                               display: 'flex',
@@ -630,12 +815,16 @@ export function DocumentsPage() {
                               gap: '6px',
                               color: 'var(--blue)',
                               textDecoration: 'none',
-                              fontWeight: 500
+                              fontWeight: 500,
+                              border: 0,
+                              background: 'transparent',
+                              cursor: 'pointer',
+                              padding: 0
                             }}
                           >
                             <Download size={16} />
                             Tải về
-                          </a>
+                          </button>
                         </div>
                       )
                     })}

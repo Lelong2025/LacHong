@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { emitSessionExpired } from '../lib/sessionExpiry'
 
 export type Profile = {
   id: string
@@ -16,6 +17,7 @@ type AuthContextType = {
   profile: Profile | null
   loading: boolean
   profileLockedOut: boolean
+  refreshProfile: () => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -32,7 +34,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Fetch session on load
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error && emitSessionExpired(error)) {
+        setLoading(false)
+        return
+      }
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
@@ -96,7 +102,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .single()
       
-      if (error) throw error
+      if (error) {
+        if (emitSessionExpired(error)) return
+        throw error
+      }
       setProfile(data)
       prevIsActive.current = (data as Profile).is_active
     } catch (error) {
@@ -107,11 +116,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    await supabase.auth.signOut({ scope: 'local' })
+  }
+
+  const refreshProfile = async () => {
+    if (!user) return
+    await fetchProfile(user.id)
   }
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, profileLockedOut, signOut }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, profileLockedOut, refreshProfile, signOut }}>
       {children}
     </AuthContext.Provider>
   )

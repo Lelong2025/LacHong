@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import { ThemeSwitch } from '../components/ThemeSwitch'
-import { supabase } from '../lib/supabase'
+import { getRememberSession, setRememberSession, supabase } from '../lib/supabase'
 import './auth.css'
 
 type AuthMode = 'login' | 'register'
@@ -9,7 +10,7 @@ type AuthPageProps = {
   theme: 'light' | 'dark'
   onToggleTheme: () => void
   onStartTransition?: () => void
-  onTransitionComplete?: () => void
+  onTransitionComplete?: (session: Session) => void
 }
 
 export default function AuthPage({ 
@@ -21,9 +22,11 @@ export default function AuthPage({
   const [mode, setMode] = useState<AuthMode>('login')
   const [showPassword, setShowPassword] = useState(false)
   const [registerLoading, setRegisterLoading] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
   const [transitionStage, setTransitionStage] = useState<'idle' | 'loading' | 'expanding'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [remember, setRemember] = useState(getRememberSession)
 
   // Form Fields
   const [email, setEmail] = useState('')
@@ -52,8 +55,10 @@ export default function AuthPage({
     const minDelayPromise = new Promise(resolve => setTimeout(resolve, 3000))
 
     try {
+      setRememberSession(remember)
       const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password })
       if (loginError) throw loginError
+      if (!loginData.session) throw new Error('Không lấy được phiên đăng nhập.')
 
       // Kiểm tra tài khoản có đang bị khóa không
       const { data: profileData } = await supabase
@@ -64,7 +69,7 @@ export default function AuthPage({
 
       if (profileData && !profileData.is_active) {
         // Đăng xuất ngay lập tức nếu tài khoản bị khóa
-        await supabase.auth.signOut()
+        await supabase.auth.signOut({ scope: 'local' })
         throw new Error('ACCOUNT_LOCKED')
       }
 
@@ -77,7 +82,7 @@ export default function AuthPage({
       await new Promise(resolve => setTimeout(resolve, 850))
 
       // Hoàn thành và tải trang dashboard
-      onTransitionComplete?.()
+      onTransitionComplete?.(loginData.session)
     } catch (err: unknown) {
       setTransitionStage('idle')
       const msg = err instanceof Error ? err.message : 'Đăng nhập thất bại.'
@@ -121,6 +126,28 @@ export default function AuthPage({
       }
     } finally {
       setRegisterLoading(false)
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    setError(null)
+    setSuccess(null)
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Nhập email hợp lệ trước khi dùng quên mật khẩu.')
+      return
+    }
+
+    setResetLoading(true)
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}${window.location.pathname}`,
+      })
+      if (error) throw error
+      setSuccess('Đã gửi email đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Không gửi được email đặt lại mật khẩu.')
+    } finally {
+      setResetLoading(false)
     }
   }
 
@@ -284,13 +311,35 @@ export default function AuthPage({
                 ></i>
               </div>
 
+              {isLogin && (
+                <label className="remember-row">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(event) => setRemember(event.target.checked)}
+                    disabled={isPendingTransition || registerLoading}
+                  />
+                  <span>Remember me</span>
+                </label>
+              )}
+
               <button 
                 type="submit" 
                 className="btn btn-signin"
-                disabled={isPendingTransition || registerLoading}
+                disabled={isPendingTransition || registerLoading || resetLoading}
               >
-                {registerLoading ? 'Đang xử lý...' : isLogin ? 'Sign In' : 'Sign Up'}
+                {registerLoading || resetLoading ? 'Đang xử lý...' : isLogin ? 'Sign In' : 'Sign Up'}
               </button>
+              {isLogin && (
+                <button
+                  type="button"
+                  className="forgot-password-link"
+                  onClick={handleForgotPassword}
+                  disabled={isPendingTransition || registerLoading || resetLoading}
+                >
+                  Quên mật khẩu?
+                </button>
+              )}
             </form>
           )}
 
