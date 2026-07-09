@@ -40,6 +40,9 @@ const mailerOptions: SMTPTransportOptionsWithFamily = {
   port: Number(process.env.SMTP_PORT ?? 587),
   secure: process.env.SMTP_SECURE === 'true',
   family: 4,
+  connectionTimeout: 10_000,
+  greetingTimeout: 10_000,
+  socketTimeout: 20_000,
   auth: {
     user: required('SMTP_USER'),
     pass: required('SMTP_PASS'),
@@ -101,6 +104,13 @@ async function sendMail(to: string, subject: string, html: string) {
     to,
     subject,
     html,
+  })
+}
+
+function sendMailInBackground(to: string, subject: string, html: string) {
+  void sendMail(to, subject, html).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`Unable to send mail to ${to}: ${message}`)
   })
 }
 
@@ -852,7 +862,7 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
 
       // 3. Gửi email thông báo
       const name = assigneeName || assignee.email
-      await sendMail(
+      sendMailInBackground(
         email,
         '[Lạc Hồng] Bạn đã được thêm vào hồ sơ mới',
         `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; color: #333;">
@@ -893,7 +903,7 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
       }
 
       // 2. Gửi email thông báo được giao hồ sơ + mời đăng ký
-      await sendMail(
+      sendMailInBackground(
         email,
         'Lời mời tham gia hệ thống và phân công hồ sơ',
         `<p>Xin chào,</p>
