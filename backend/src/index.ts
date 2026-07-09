@@ -1,10 +1,7 @@
 import cors from 'cors'
 import { randomUUID } from 'node:crypto'
-import dns from 'node:dns'
 import 'dotenv/config'
 import express from 'express'
-import nodemailer from 'nodemailer'
-import type SMTPTransport from 'nodemailer/lib/smtp-transport/index.js'
 import WebSocket from 'ws'
 import { createClient, type User } from '@supabase/supabase-js'
 
@@ -15,7 +12,6 @@ const required = (name: string) => {
 }
 
 const app = express()
-dns.setDefaultResultOrder('ipv4first')
 const port = Number(process.env.PORT ?? 3001)
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
 const publicSiteUrl = process.env.PUBLIC_SITE_URL ?? frontendOrigin
@@ -39,32 +35,6 @@ const supabase = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVI
   auth: { autoRefreshToken: false, persistSession: false },
   realtime: { transport: WebSocket as unknown as typeof globalThis.WebSocket },
 })
-
-type SMTPTransportOptionsWithNetwork = SMTPTransport.Options & {
-  family: 4
-}
-
-const smtpHost = required('SMTP_HOST')
-const smtpConnectHost = process.env.SMTP_CONNECT_HOST || smtpHost
-
-const mailerOptions: SMTPTransportOptionsWithNetwork = {
-  host: smtpConnectHost,
-  port: Number(process.env.SMTP_PORT ?? 587),
-  secure: process.env.SMTP_SECURE === 'true',
-  family: 4,
-  connectionTimeout: 10_000,
-  greetingTimeout: 10_000,
-  socketTimeout: 20_000,
-  tls: smtpConnectHost === smtpHost ? undefined : {
-    servername: smtpHost,
-  },
-  auth: {
-    user: required('SMTP_USER'),
-    pass: required('SMTP_PASS'),
-  },
-}
-
-const mailer = nodemailer.createTransport(mailerOptions)
 
 app.use(cors({
   origin: frontendOrigin === '*'
@@ -111,15 +81,26 @@ async function requireUser(req: AuthedRequest, res: express.Response, next: expr
 }
 
 async function sendMail(to: string, subject: string, html: string) {
-  return mailer.sendMail({
-    from: {
-      name: process.env.SMTP_FROM_NAME ?? 'He thong Lac Hong',
-      address: required('SMTP_FROM'),
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${required('RESEND_API_KEY')}`,
+      'Content-Type': 'application/json',
     },
-    to,
-    subject,
-    html,
+    body: JSON.stringify({
+      from: required('MAIL_FROM'),
+      to,
+      subject,
+      html,
+    }),
   })
+
+  const data = await response.json().catch(() => null) as { id?: string; message?: string; error?: string } | null
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || `Resend returned ${response.status}`)
+  }
+
+  return { messageId: data?.id || null }
 }
 
 function sendMailInBackground(to: string, subject: string, html: string) {
