@@ -1,7 +1,8 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { Layout } from './components/Layout'
-import { useAuth } from './contexts/AuthContext'
+import { useAuth, type Profile } from './contexts/AuthContext'
+import type { Session } from '@supabase/supabase-js'
 import AuthPage from './pages/AuthPage'
 import { ActivityPage } from './pages/ActivityPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -19,14 +20,37 @@ function getInitialTheme(): Theme {
 
 function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () => void }) {
   const { session, loading, profile } = useAuth()
+  const [delayedSession, setDelayedSession] = useState<Session | null>(null)
+  const [delayedProfile, setDelayedProfile] = useState<Profile | null>(null)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+
+  useEffect(() => {
+    if (!isTransitioning) {
+      setDelayedSession(session)
+      setDelayedProfile(profile)
+    }
+  }, [session, profile, isTransitioning])
 
   if (loading) {
     return <div className="splash">Đang tải hệ thống...</div>
   }
 
-  if (!session) return <AuthPage theme={theme} onToggleTheme={onToggleTheme} />
+  if (!delayedSession) {
+    return (
+      <AuthPage 
+        theme={theme} 
+        onToggleTheme={onToggleTheme} 
+        onStartTransition={() => setIsTransitioning(true)}
+        onTransitionComplete={() => {
+          setIsTransitioning(false)
+          setDelayedSession(session)
+          setDelayedProfile(profile)
+        }}
+      />
+    )
+  }
 
-  if (profile && !profile.is_active) {
+  if (delayedProfile && !delayedProfile.is_active) {
     return (
       <div className="splash inactive-account">
         <h1>Tài khoản đang bị khóa</h1>
@@ -43,8 +67,8 @@ function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () =
         <Route path="/documents/:type" element={<Navigate to="/documents" replace />} />
         <Route path="/archive" element={<PlaceholderPage title="Lưu trữ" />} />
         <Route path="/statistics" element={<PlaceholderPage title="Thống kê" />} />
-        {profile?.role === 'admin' && <Route path="/users" element={<UsersPage />} />}
-        {profile?.role === 'admin' && <Route path="/activity" element={<ActivityPage />} />}
+        {delayedProfile?.role === 'admin' && <Route path="/users" element={<UsersPage />} />}
+        {delayedProfile?.role === 'admin' && <Route path="/activity" element={<ActivityPage />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
