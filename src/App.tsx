@@ -1,14 +1,16 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Layout } from './components/Layout'
 import { useAuth, type Profile } from './contexts/AuthContext'
 import type { Session } from '@supabase/supabase-js'
 import AuthPage from './pages/AuthPage'
-import { ActivityPage } from './pages/ActivityPage'
+import { ArchivePage } from './pages/ArchivePage'
 import { DashboardPage } from './pages/DashboardPage'
 import { DocumentsPage } from './pages/DocumentsPage'
-import { PlaceholderPage } from './pages/PlaceholderPage'
+import { StatisticsPage } from './pages/StatisticsPage'
+import { TrashPage } from './pages/TrashPage'
 import { UsersPage } from './pages/UsersPage'
+import './App.css'
 
 type Theme = 'light' | 'dark'
 
@@ -19,10 +21,12 @@ function getInitialTheme(): Theme {
 }
 
 function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () => void }) {
-  const { session, loading, profile } = useAuth()
+  const { session, loading, profile, profileLockedOut, signOut } = useAuth()
   const [delayedSession, setDelayedSession] = useState<Session | null>(null)
   const [delayedProfile, setDelayedProfile] = useState<Profile | null>(null)
   const [isTransitioning, setIsTransitioning] = useState(false)
+  const [lockoutCountdown, setLockoutCountdown] = useState(4)
+  const lockoutTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (!isTransitioning) {
@@ -31,15 +35,36 @@ function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () =
     }
   }, [session, profile, isTransitioning])
 
+  // Khi phát hiện tài khoản bị khóa real-time → đếm ngược rồi đăng xuất
+  useEffect(() => {
+    if (!profileLockedOut) return
+
+    setLockoutCountdown(4)
+    lockoutTimer.current = setInterval(() => {
+      setLockoutCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(lockoutTimer.current!)
+          void signOut()
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => {
+      if (lockoutTimer.current) clearInterval(lockoutTimer.current)
+    }
+  }, [profileLockedOut, signOut])
+
   if (loading) {
     return <div className="splash">Đang tải hệ thống...</div>
   }
 
   if (!delayedSession) {
     return (
-      <AuthPage 
-        theme={theme} 
-        onToggleTheme={onToggleTheme} 
+      <AuthPage
+        theme={theme}
+        onToggleTheme={onToggleTheme}
         onStartTransition={() => setIsTransitioning(true)}
         onTransitionComplete={() => {
           setIsTransitioning(false)
@@ -50,25 +75,50 @@ function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () =
     )
   }
 
-  if (delayedProfile && !delayedProfile.is_active) {
+  // Tài khoản đã bị khóa từ trước khi đăng nhập
+  if (delayedProfile && !delayedProfile.is_active && !profileLockedOut) {
     return (
       <div className="splash inactive-account">
         <h1>Tài khoản đang bị khóa</h1>
         <p>Vui lòng liên hệ quản trị viên để được hỗ trợ.</p>
+        <button onClick={() => void signOut()} className="primary" style={{ marginTop: '1rem' }}>
+          Đăng xuất
+        </button>
       </div>
     )
   }
 
   return (
     <Layout theme={theme} onToggleTheme={onToggleTheme}>
+      {/* === BANNER KHÓA TÀI KHOẢN REAL-TIME === */}
+      {profileLockedOut && (
+        <div className="lockout-banner">
+          <div className="lockout-banner-inner">
+            <span className="lockout-icon">🔒</span>
+            <div className="lockout-text">
+              <strong>Tài khoản của bạn đã bị khóa</strong>
+              <span>Vui lòng liên hệ quản trị viên. Hệ thống sẽ tự động đăng xuất sau {lockoutCountdown}s...</span>
+            </div>
+            <button
+              className="lockout-signout-btn"
+              onClick={() => {
+                if (lockoutTimer.current) clearInterval(lockoutTimer.current)
+                void signOut()
+              }}
+            >
+              Đăng xuất ngay
+            </button>
+          </div>
+        </div>
+      )}
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/documents/:type" element={<Navigate to="/documents" replace />} />
-        <Route path="/archive" element={<PlaceholderPage title="Lưu trữ" />} />
-        <Route path="/statistics" element={<PlaceholderPage title="Thống kê" />} />
+        <Route path="/archive" element={<ArchivePage />} />
+        <Route path="/trash" element={<TrashPage />} />
+        <Route path="/statistics" element={<StatisticsPage />} />
         {delayedProfile?.role === 'admin' && <Route path="/users" element={<UsersPage />} />}
-        {delayedProfile?.role === 'admin' && <Route path="/activity" element={<ActivityPage />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

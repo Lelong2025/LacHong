@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
@@ -15,6 +15,7 @@ type AuthContextType = {
   user: User | null
   profile: Profile | null
   loading: boolean
+  profileLockedOut: boolean
   signOut: () => Promise<void>
 }
 
@@ -25,6 +26,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [profileLockedOut, setProfileLockedOut] = useState(false)
+  // Track previous is_active to only trigger once on transition
+  const prevIsActive = useRef<boolean | null>(null)
 
   useEffect(() => {
     // Fetch session on load
@@ -39,20 +43,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
         fetchProfile(session.user.id)
-        if (event === 'SIGNED_IN') void supabase.rpc('log_login')
       } else {
         setProfile(null)
+        prevIsActive.current = null
+        setProfileLockedOut(false)
         setLoading(false)
       }
     })
 
     return () => subscription.unsubscribe()
   }, [])
+
+  // Real-time subscription to profile changes (watches for is_active flipping to false)
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase
+      .channel(`profile-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${user.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as Profile
+          setProfile(updated)
+          // Phát hiện tài khoản vừa bị khóa (chuyển từ active → inactive)
+          if (prevIsActive.current === true && updated.is_active === false) {
+            setProfileLockedOut(true)
+          }
+          prevIsActive.current = updated.is_active
+        }
+      )
+      .subscribe()
+
+    return () => { void supabase.removeChannel(channel) }
+  }, [user])
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -64,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (error) throw error
       setProfile(data)
+      prevIsActive.current = (data as Profile).is_active
     } catch (error) {
       console.error('Error fetching profile:', error)
     } finally {
@@ -76,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, profileLockedOut, signOut }}>
       {children}
     </AuthContext.Provider>
   )

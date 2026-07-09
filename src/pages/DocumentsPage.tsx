@@ -1,8 +1,9 @@
-import { Archive, CheckCircle2, FilePlus2, Hash, MailPlus, Search, Send, Stamp, Trash2, UploadCloud, X, XCircle } from 'lucide-react'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Eye, FilePlus2, Search, Trash2, UploadCloud, X, Send, Stamp, CheckCircle2, FileText, Clock3, Hash, FolderOpen, Download, Pencil } from 'lucide-react'
+import { useCallback, useEffect, useState, useMemo, type FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { EmptyState } from '../components/EmptyState'
 import { supabase } from '../lib/supabase'
-import type { AssigneeOption, DocumentRow, DocumentStatus } from '../types'
+import type { AssigneeOption, DocumentRow } from '../types'
 
 const labels: Record<string, string> = {
   totrinh: 'Tờ trình',
@@ -10,21 +11,31 @@ const labels: Record<string, string> = {
   khenthuong: 'Khen thưởng',
   baocao: 'Báo cáo',
   kehoach: 'Kế hoạch',
-}
-
-const statusLabels: Record<DocumentStatus, string> = {
-  draft: 'Bản nháp',
-  submitted: 'Chờ duyệt',
-  approved: 'Đã duyệt',
-  rejected: 'Từ chối',
-  pending_issue: 'Chờ ban hành',
-  issued: 'Đã ban hành',
-  archived: 'Lưu trữ',
+  banhanh: 'Ban hành',
 }
 
 const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 const assigneeLabel = (option: AssigneeOption) => option.full_name ? `${option.full_name} (${option.email})` : option.email
 const backendUrl = import.meta.env.VITE_BACKEND_URL
+
+const parseAssigneeNames = (value: string | null): AssigneeOption[] => {
+  if (!value) return []
+  return value.split(',').map(item => item.trim()).filter(Boolean).map((item) => {
+    const match = item.match(/^(.*)\s+\(([^)]+)\)$/)
+    if (match) return { full_name: match[1].trim(), email: match[2].trim() }
+    return { full_name: null, email: item }
+  })
+}
+
+const readFileBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onerror = () => reject(new Error(`Không đọc được file "${file.name}".`))
+  reader.onload = () => {
+    const result = String(reader.result || '')
+    resolve(result.includes(',') ? result.split(',')[1] : result)
+  }
+  reader.readAsDataURL(file)
+})
 
 function FileDropzone({ label, files, onChange }: { label: string; files: File[]; onChange: (files: File[]) => void }) {
   const [dragging, setDragging] = useState(false)
@@ -49,56 +60,52 @@ function FileDropzone({ label, files, onChange }: { label: string; files: File[]
 
 export function DocumentsPage() {
   const { user, profile } = useAuth()
-  const [items, setItems] = useState<DocumentRow[]>([])
+  const [allDocs, setAllDocs] = useState<DocumentRow[]>([])
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [show, setShow] = useState(false)
+  const [editingDoc, setEditingDoc] = useState<DocumentRow | null>(null)
   const [error, setError] = useState('')
   const [assigneeInput, setAssigneeInput] = useState('')
   const [assigneeOptions, setAssigneeOptions] = useState<AssigneeOption[]>([])
-  const [selectedAssignee, setSelectedAssignee] = useState<AssigneeOption | null>(null)
-  const [inviting, setInviting] = useState(false)
+  const [selectedAssignees, setSelectedAssignees] = useState<AssigneeOption[]>([])
   const [inviteMessage, setInviteMessage] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
   const [issuedAttachments, setIssuedAttachments] = useState<File[]>([])
 
+  const [selectedDoc, setSelectedDoc] = useState<DocumentRow | null>(null)
+  const [docFiles, setDocFiles] = useState<{ id: string; name: string; object_path: string; file_kind: string; url?: string }[]>([])
+  const [loadingFiles, setLoadingFiles] = useState(false)
+
+
   async function uploadFiles(documentId: string, files: File[], fileKind: 'attachment' | 'issued_attachment') {
-    if (!user || !files.length) return
+    if (!files.length) return
 
     for (const file of files) {
       if (file.size > 5 * 1024 * 1024) throw new Error(`File "${file.name}" vượt quá 5MB.`)
 
-      const safeName = file.name.replace(/[^\w.-]+/g, '_')
-      const objectPath = `${documentId}/${fileKind}/${crypto.randomUUID()}-${safeName}`
-      const { error: uploadError } = await supabase.storage.from('documents').upload(objectPath, file, {
-        contentType: file.type || 'application/octet-stream',
-      })
-      if (uploadError) throw uploadError
-
-      const { error: fileError } = await supabase.from('document_files').insert({
-        document_id: documentId,
+      await callBackend('/api/upload-document-file', {
+        documentId,
         name: file.name,
-        object_path: objectPath,
-        mime_type: file.type || 'application/octet-stream',
-        size_bytes: file.size,
-        file_kind: fileKind,
-        created_by: user.id,
+        mimeType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        fileKind,
+        contentBase64: await readFileBase64(file),
       })
-      if (fileError) throw fileError
     }
   }
 
   const resetCreateForm = () => {
     setAssigneeInput('')
     setAssigneeOptions([])
-    setSelectedAssignee(null)
+    setSelectedAssignees(user ? [{ id: user.id, email: user.email || profile?.email || '', full_name: profile?.full_name || null }] : [])
     setInviteMessage('')
     setAttachments([])
     setIssuedAttachments([])
+    setEditingDoc(null)
   }
 
-  async function callBackend(path: string, body: Record<string, unknown>) {
+  async function callBackend<T = { ok: boolean }>(path: string, body: Record<string, unknown>): Promise<T> {
     if (!backendUrl) throw new Error('Thiếu VITE_BACKEND_URL trong .env.')
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.access_token) throw new Error('Phiên đăng nhập không hợp lệ.')
@@ -112,8 +119,9 @@ export function DocumentsPage() {
       body: JSON.stringify(body),
     })
 
-    const payload = await response.json().catch(() => ({})) as { error?: string }
+    const payload = await response.json().catch(() => ({})) as T & { error?: string }
     if (!response.ok) throw new Error(payload.error || 'Backend xử lý thất bại.')
+    return payload
   }
 
   const load = useCallback(async () => {
@@ -123,14 +131,10 @@ export function DocumentsPage() {
       .is('deleted_at', null)
       .order('updated_at', { ascending: false })
 
-    if (typeFilter) query = query.eq('type', typeFilter)
-    if (search) query = query.ilike('title', `%${search}%`)
-    if (status) query = query.eq('status', status)
-
     const { data, error } = await query
     if (error) setError(error.message)
-    else setItems((data || []) as DocumentRow[])
-  }, [search, status, typeFilter])
+    else setAllDocs((data || []) as DocumentRow[])
+  }, [])
 
   useEffect(() => {
     void load()
@@ -144,36 +148,91 @@ export function DocumentsPage() {
     }
   }, [load])
 
+  const filteredItems = useMemo(() => {
+    return allDocs.filter(doc => {
+      const matchesType = !typeFilter || doc.type === typeFilter
+      const matchesSearch = !search ||
+        doc.title.toLowerCase().includes(search.toLowerCase()) ||
+        (doc.description && doc.description.toLowerCase().includes(search.toLowerCase()))
+      return matchesType && matchesSearch
+    })
+  }, [allDocs, typeFilter, search])
+
+  const typeCounts = useMemo(() => {
+    return allDocs.reduce<Record<string, number>>((acc, doc) => {
+      acc[doc.type] = (acc[doc.type] ?? 0) + 1
+      return acc
+    }, {})
+  }, [allDocs])
+
+  async function handleViewDetail(doc: DocumentRow) {
+    setSelectedDoc(doc)
+    setLoadingFiles(true)
+    setDocFiles([])
+    try {
+      const { data, error } = await supabase
+        .from('document_files')
+        .select('id, name, object_path, file_kind')
+        .eq('document_id', doc.id)
+        .is('deleted_at', null)
+      if (error) throw error
+      const filesWithUrls = await Promise.all((data || []).map(async (file) => {
+        const { data: signed } = await supabase.storage.from('documents').createSignedUrl(file.object_path, 60 * 60)
+        return { ...file, url: signed?.signedUrl }
+      }))
+      setDocFiles(filesWithUrls)
+    } catch (err) {
+      console.error('Lỗi khi tải file đính kèm:', err)
+    } finally {
+      setLoadingFiles(false)
+    }
+  }
+
+
   useEffect(() => {
-    if (!show || selectedAssignee || assigneeInput.trim().length < 2) {
+    if (!show || assigneeInput.trim().length < 2) {
       setAssigneeOptions([])
       return
     }
 
     const timer = window.setTimeout(async () => {
       const { data } = await supabase.rpc('search_assignees', { p_query: assigneeInput.trim() })
-      setAssigneeOptions((data || []) as AssigneeOption[])
+      const opts = (data || []) as AssigneeOption[]
+      // Lọc bỏ những người đã được chọn
+      setAssigneeOptions(opts.filter(opt => !selectedAssignees.some(s => s.email === opt.email)))
     }, 250)
 
     return () => window.clearTimeout(timer)
-  }, [assigneeInput, selectedAssignee, show])
+  }, [assigneeInput, selectedAssignees, show])
 
-  async function inviteAssignee() {
-    const email = assigneeInput.trim()
-    if (!isEmail(email)) {
-      setInviteMessage('Nhập email hợp lệ để mời người thực hiện.')
+  const handleAddAssignee = (option: AssigneeOption) => {
+    if (selectedAssignees.some(a => a.email.toLowerCase() === option.email.toLowerCase())) {
       return
     }
+    setSelectedAssignees([...selectedAssignees, option])
+    setAssigneeInput('')
+    setAssigneeOptions([])
+  }
 
-    setInviting(true)
-    setInviteMessage('')
-    try {
-      await callBackend('/api/invite-user', { email })
-      setInviteMessage(`Đã gửi lời mời đến ${email}.`)
-    } catch (error) {
-      setInviteMessage(error instanceof Error ? error.message : 'Không thể gửi lời mời.')
-    } finally {
-      setInviting(false)
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const val = assigneeInput.trim()
+      if (!val) return
+
+      const exactMatch = assigneeOptions.find(
+        opt => opt.email.toLowerCase() === val.toLowerCase() || opt.full_name?.toLowerCase() === val.toLowerCase()
+      )
+      if (exactMatch) {
+        handleAddAssignee(exactMatch)
+        return
+      }
+
+      if (isEmail(val)) {
+        handleAddAssignee({ email: val.toLowerCase(), full_name: null })
+      } else {
+        setInviteMessage('Vui lòng nhập email hợp lệ để thêm người thực hiện mới.')
+      }
     }
   }
 
@@ -185,26 +244,51 @@ export function DocumentsPage() {
     const form = new FormData(formElement)
     const content = String(form.get('content') || '').trim()
     const documentType = String(form.get('type') || 'totrinh')
-    const assigneeName = selectedAssignee ? assigneeLabel(selectedAssignee) : assigneeInput.trim()
     const yearValue = Number(form.get('document_year') || new Date().getFullYear())
 
+    // Ghép tên/email của toàn bộ danh sách thành một chuỗi phân tách bằng dấu phẩy
+    const assigneeNames = selectedAssignees
+      .map(a => a.full_name ? `${a.full_name} (${a.email})` : a.email)
+      .join(', ')
+
+    // Đặt assignee_id của documents là ID của người thực hiện đã đăng ký đầu tiên trong danh sách (nếu có)
+    const firstRegistered = selectedAssignees.find(a => !!a.id)
+    const primaryAssigneeId = firstRegistered ? firstRegistered.id : null
+
     try {
-      const { data, error } = await supabase.from('documents').insert({
+      const documentPayload = {
         type: documentType,
         title: content.slice(0, 250),
         description: content,
-        assignee_name: assigneeName || null,
-        assignee_id: selectedAssignee?.id ?? null,
+        assignee_name: assigneeNames || null,
+        assignee_id: primaryAssigneeId,
         document_year: yearValue,
-        created_by: user.id,
-      }).select('id').single()
-
-      if (error) throw error
-      await uploadFiles(data.id, attachments, 'attachment')
-      await uploadFiles(data.id, issuedAttachments, 'issued_attachment')
-      if (selectedAssignee) {
-        await callBackend('/api/notify-assignee', { documentId: data.id, assigneeId: selectedAssignee.id })
+        status: 'archived',
       }
+
+      const requestedDocumentId = editingDoc?.id || crypto.randomUUID()
+      const { documentId } = await callBackend<{ ok: boolean; documentId: string }>('/api/save-document', {
+        documentId: requestedDocumentId,
+        editing: Boolean(editingDoc),
+        document: documentPayload,
+      })
+
+      await uploadFiles(documentId, attachments, 'attachment')
+      await uploadFiles(documentId, issuedAttachments, 'issued_attachment')
+
+      // Gọi backend để thiết lập phân quyền (document_shares), in-app notifications, gửi email thông báo/lời mời
+      const externalAssignees = selectedAssignees.filter(a => a.id !== user.id)
+      if (externalAssignees.length > 0) {
+        await callBackend('/api/setup-document-assignees', {
+          documentId,
+          assignees: externalAssignees.map(a => ({
+            id: a.id,
+            email: a.email,
+            name: a.full_name
+          }))
+        })
+      }
+
       setShow(false)
       formElement.reset()
       resetCreateForm()
@@ -214,45 +298,30 @@ export function DocumentsPage() {
     }
   }
 
-  async function updateStatus(document: DocumentRow, nextStatus: DocumentStatus) {
-    const { error } = await supabase
-      .from('documents')
-      .update({ status: nextStatus, updated_at: new Date().toISOString() })
-      .eq('id', document.id)
-
-    if (error) setError(error.message)
-    else void load()
+  function openCreateForm() {
+    resetCreateForm()
+    setShow(true)
   }
 
-  async function review(document: DocumentRow, action: 'approve' | 'reject') {
-    const nextStatus = action === 'approve' ? 'approved' : 'rejected'
-    const { error: documentError } = await supabase
-      .from('documents')
-      .update({ status: nextStatus, updated_at: new Date().toISOString() })
-      .eq('id', document.id)
-
-    if (documentError) {
-      setError(documentError.message)
-      return
-    }
-
-    await supabase.from('review_actions').insert({
-      document_id: document.id,
-      actor_id: user?.id,
-      action,
-      comment: action === 'approve' ? 'Admin đã duyệt hồ sơ' : 'Admin từ chối hồ sơ',
-    })
-    void load()
+  function openEditForm(document: DocumentRow) {
+    setEditingDoc(document)
+    setAssigneeInput('')
+    setAssigneeOptions([])
+    setInviteMessage('')
+    setAttachments([])
+    setIssuedAttachments([])
+    const parsedAssignees = parseAssigneeNames(document.assignee_name)
+    setSelectedAssignees(parsedAssignees.length ? parsedAssignees.map((item, index) => ({
+      ...item,
+      id: index === 0 ? document.assignee_id || undefined : undefined,
+    })) : [{ id: user?.id, email: user?.email || profile?.email || '', full_name: profile?.full_name || null }])
+    setShow(true)
   }
 
-  async function issue(document: DocumentRow) {
-    const { error } = await supabase.rpc('issue_document', { p_document: document.id })
-    if (error) setError(error.message)
-    else void load()
-  }
+
 
   async function remove(document: DocumentRow) {
-    if (!confirm(`Xóa nháp "${document.title}"?`)) return
+    if (!confirm(`Xóa hồ sơ "${document.title}"?`)) return
     const { error } = await supabase
       .from('documents')
       .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
@@ -264,119 +333,320 @@ export function DocumentsPage() {
 
   const isAdmin = profile?.role === 'admin'
 
+  const typeList = [
+    { key: 'totrinh', label: 'Tờ trình', icon: Send },
+    { key: 'quyetdinh', label: 'Quyết định', icon: Stamp },
+    { key: 'khenthuong', label: 'Khen thưởng', icon: CheckCircle2 },
+    { key: 'baocao', label: 'Báo cáo', icon: FileText },
+    { key: 'kehoach', label: 'Kế hoạch', icon: Clock3 },
+    { key: 'banhanh', label: 'Ban hành', icon: Hash },
+  ]
+
   return (
     <>
       <div className="page-heading">
         <div>
           <h1>Quản lý hồ sơ</h1>
-          <p>Tra cứu, tạo mới, duyệt và theo dõi trạng thái hồ sơ.</p>
+          <p>Tra cứu, tạo mới và theo dõi trạng thái hồ sơ.</p>
         </div>
-        <button className="primary" onClick={() => { resetCreateForm(); setShow(true) }}><FilePlus2 />Tạo hồ sơ</button>
+        <button className="primary" onClick={openCreateForm}><FilePlus2 />Tạo hồ sơ</button>
       </div>
+
+      {/* Card Filter Loại Hồ Sơ */}
+      <section className="metric-grid" style={{ marginBottom: '1.5rem' }}>
+        <article
+          className={`metric-card clickable ${!typeFilter ? 'active' : ''}`}
+          onClick={() => setTypeFilter('')}
+          style={{ cursor: 'pointer', border: !typeFilter ? '1px solid var(--blue)' : '1px solid var(--line)' }}
+        >
+          <FolderOpen style={{ color: 'var(--blue)' }} />
+          <span>Tất cả hồ sơ</span>
+          <b>{allDocs.length}</b>
+        </article>
+        {typeList.map(({ key, label, icon: Icon }) => {
+          const count = typeCounts[key] ?? 0
+          const isActive = typeFilter === key
+          return (
+            <article
+              className={`metric-card clickable ${isActive ? 'active' : ''}`}
+              key={key}
+              onClick={() => setTypeFilter(key)}
+              style={{
+                cursor: 'pointer',
+                opacity: count === 0 && !isActive ? 0.45 : 1,
+                border: isActive ? '1px solid var(--blue)' : '1px solid var(--line)'
+              }}
+            >
+              <Icon style={isActive ? { color: 'var(--blue)' } : {}} />
+              <span>{label}</span>
+              <b>{count}</b>
+            </article>
+          )
+        })}
+      </section>
+
       <section className="toolbar">
         <label>
           <Search />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo tiêu đề..." />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo tiêu đề hoặc nội dung..." />
         </label>
-        <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-          <option value="">Tất cả loại hồ sơ</option>
-          {Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        <select value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="">Tất cả trạng thái</option>
-          {Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        <span>{items.length} hồ sơ</span>
+        <span>{filteredItems.length} hồ sơ</span>
       </section>
       {error && <p className="error">{error}</p>}
       <section className="table-card">
         <table>
           <thead>
             <tr>
-              <th>Mã số</th>
               <th>Loại</th>
               <th>Tiêu đề / Nội dung</th>
               <th>Năm</th>
-              <th>Trạng thái</th>
               <th>Thao tác</th>
             </tr>
           </thead>
           <tbody>
-            {items.map((document) => {
-              const canEditDraft = document.created_by === user?.id && document.status === 'draft'
+            {filteredItems.map((document) => {
+              const canEdit = document.created_by === user?.id
+              const canDelete = isAdmin || document.created_by === user?.id
               return (
                 <tr key={document.id}>
-                  <td>{document.code || '-'}</td>
                   <td>{labels[document.type] || document.type}</td>
                   <td>
-                    <b>{document.title}</b>
+                    <b
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => handleViewDetail(document)}
+                      className="hover-link"
+                    >
+                      {document.title}
+                    </b>
                     <small>{document.description}</small>
                   </td>
                   <td>{document.document_year || new Date(document.created_at).getFullYear()}</td>
-                  <td><span className={`status ${document.status}`}>{statusLabels[document.status]}</span></td>
                   <td>
                     <div className="row-actions">
-                      {canEditDraft && <button className="primary compact" onClick={() => updateStatus(document, 'submitted')}><Send />Gửi duyệt</button>}
-                      {canEditDraft && <button className="danger-icon" title="Xóa nháp" onClick={() => remove(document)}><Trash2 /></button>}
-                      {isAdmin && document.status === 'submitted' && <button className="primary compact" onClick={() => review(document, 'approve')}><CheckCircle2 />Duyệt</button>}
-                      {isAdmin && document.status === 'submitted' && <button className="danger-icon text-button" onClick={() => review(document, 'reject')}><XCircle />Từ chối</button>}
-                      {isAdmin && document.status === 'approved' && <button className="primary compact" onClick={() => updateStatus(document, 'pending_issue')}><Stamp />Chờ ban hành</button>}
-                      {isAdmin && document.status === 'pending_issue' && <button className="primary compact" onClick={() => issue(document)}><Hash />Cấp số</button>}
-                      {isAdmin && document.status === 'issued' && <button className="ghost compact" onClick={() => updateStatus(document, 'archived')}><Archive />Lưu trữ</button>}
+                      <button className="ghost compact" title="Xem chi tiết" onClick={() => handleViewDetail(document)}>
+                        <Eye />
+                      </button>
+                      {canEdit && (
+                        <button className="ghost compact" title="Sửa hồ sơ" onClick={() => openEditForm(document)}>
+                          <Pencil />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button className="danger-icon" title="Xóa hồ sơ" onClick={() => remove(document)}>
+                          <Trash2 />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
               )
             })}
-            {!items.length && <tr><td colSpan={6} className="empty">Chưa có hồ sơ.</td></tr>}
+            {!filteredItems.length && <tr><td colSpan={4}><EmptyState message="Chưa có hồ sơ nào." /></td></tr>}
           </tbody>
         </table>
       </section>
+
+      {/* Modal Tạo hồ sơ mới */}
       {show && (
         <div className="modal">
           <form className="document-form modal-container-style" onSubmit={create}>
             <div className="modal-form-header">
-              <h2>Tạo hồ sơ mới</h2>
-              <button type="button" className="btn-close" onClick={() => setShow(false)}><X /></button>
+              <h2>{editingDoc ? 'Sửa hồ sơ' : 'Tạo hồ sơ mới'}</h2>
+              <button type="button" className="btn-close" onClick={() => { setShow(false); resetCreateForm() }}><X /></button>
             </div>
             <div className="modal-form-body">
-              <input type="hidden" name="type" value={typeFilter || 'totrinh'} />
               <div className="form-top-row">
                 <div className="form-left-col">
                   <label className="form-group content-field-custom">
                     Nội dung
-                    <textarea name="content" placeholder="Nhập nội dung hồ sơ..." required />
+                    <textarea name="content" placeholder="Nhập nội dung hồ sơ..." defaultValue={editingDoc?.description || ''} required />
                   </label>
                 </div>
                 <div className="form-right-col">
+                  <label className="form-group" style={{ marginBottom: '12px' }}>
+                    Loại hồ sơ
+                    <select name="type" defaultValue={editingDoc?.type || typeFilter || 'totrinh'} required>
+                      {Object.entries(labels).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
                   <div className="row-flex">
                     <label className="form-group assignee-field-custom">
                       Người thực hiện
                       <div className="assignee-combobox">
-                        <input value={assigneeInput} onChange={(event) => { setSelectedAssignee(null); setAssigneeInput(event.target.value); setInviteMessage('') }} onKeyDown={(event) => { if (event.key === 'Enter' && isEmail(assigneeInput) && !selectedAssignee) { event.preventDefault(); void inviteAssignee() } }} placeholder="Chọn hoặc nhập người thực hiện" />
-                        {selectedAssignee && <button type="button" title="Bỏ chọn" onClick={() => { setSelectedAssignee(null); setAssigneeInput('') }}><X /></button>}
-                        {!selectedAssignee && isEmail(assigneeInput) && <button type="button" className="invite-button" onClick={inviteAssignee} disabled={inviting}><MailPlus />{inviting ? 'Đang mời' : 'Mời'}</button>}
-                        {assigneeOptions.length > 0 && <div className="assignee-options">{assigneeOptions.map((option) => <button type="button" key={option.id} onClick={() => { setSelectedAssignee(option); setAssigneeInput(assigneeLabel(option)); setAssigneeOptions([]); setInviteMessage('') }}>{assigneeLabel(option)}</button>)}</div>}
+                        <input
+                          value={assigneeInput}
+                          onChange={(event) => { setAssigneeInput(event.target.value); setInviteMessage('') }}
+                          onKeyDown={handleKeyDown}
+                          placeholder="Chọn hoặc nhập người thực hiện"
+                        />
+                        {assigneeOptions.length > 0 && (
+                          <div className="assignee-options">
+                            {assigneeOptions.map((option) => (
+                              <button
+                                type="button"
+                                key={option.id}
+                                onClick={() => handleAddAssignee(option)}
+                              >
+                                {assigneeLabel(option)}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       {inviteMessage && <small>{inviteMessage}</small>}
+                      {selectedAssignees.length > 0 && (
+                        <div className="selected-assignees-list">
+                          {selectedAssignees.map((assignee) => (
+                            <span key={assignee.email} className="assignee-chip">
+                              <span title={assignee.full_name ? `${assignee.full_name} (${assignee.email})` : assignee.email}>
+                                {assignee.full_name ? `${assignee.full_name} (${assignee.email})` : assignee.email}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedAssignees(selectedAssignees.filter(a => a.email !== assignee.email))}
+                              >
+                                <X size={14} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </label>
                     <label className="form-group year-field-custom">
                       Năm
-                      <input name="document_year" type="number" min={2000} max={2100} defaultValue={new Date().getFullYear()} required />
+                      <input name="document_year" type="number" min={2000} max={2100} defaultValue={editingDoc?.document_year || new Date().getFullYear()} required />
                     </label>
                   </div>
                 </div>
               </div>
               <div className="document-file-grid" style={{ marginTop: '24px' }}>
                 <FileDropzone label="Đính kèm (mọi định dạng)" files={attachments} onChange={setAttachments} />
-                <FileDropzone label="Đính kèm tệp ban hành (mọi định dạng)" files={issuedAttachments} onChange={setIssuedAttachments} />
+                <FileDropzone label="Tệp lưu trữ chính thức (mọi định dạng)" files={issuedAttachments} onChange={setIssuedAttachments} />
               </div>
             </div>
             <div className="modal-form-footer">
-              <button type="button" className="btn-cancel" onClick={() => setShow(false)}>Hủy</button>
+              <button type="button" className="btn-cancel" onClick={() => { setShow(false); resetCreateForm() }}>Hủy</button>
               <button className="btn-submit">Lưu hồ sơ</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Modal Xem chi tiết hồ sơ */}
+      {selectedDoc && (
+        <div className="modal">
+          <div className="modal-container-style" style={{ maxWidth: '700px', width: '90%' }}>
+            <div className="modal-form-header">
+              <h2>Chi tiết hồ sơ</h2>
+              <button type="button" className="btn-close" onClick={() => setSelectedDoc(null)}><X /></button>
+            </div>
+            <div className="modal-form-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
+                <div>
+                  <small style={{ color: 'var(--muted)', display: 'block' }}>Ngày tạo</small>
+                  <strong>{new Date(selectedDoc.created_at).toLocaleDateString('vi-VN')}</strong>
+                </div>
+                <div>
+                  <small style={{ color: 'var(--muted)', display: 'block' }}>Loại hồ sơ</small>
+                  <strong>{labels[selectedDoc.type] || selectedDoc.type}</strong>
+                </div>
+                <div>
+                  <small style={{ color: 'var(--muted)', display: 'block' }}>Năm tài liệu</small>
+                  <strong>{selectedDoc.document_year || new Date(selectedDoc.created_at).getFullYear()}</strong>
+                </div>
+                <div>
+                  <small style={{ color: 'var(--muted)', display: 'block' }}>Lưu trữ</small>
+                  <strong>Đã lưu trữ</strong>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--bg-card, #f8fafc)', borderRadius: '6px' }}>
+                <small style={{ color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Người thực hiện</small>
+                <strong>{selectedDoc.assignee_name || 'Không có người thực hiện cụ thể'}</strong>
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <small style={{ color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Tiêu đề / Nội dung tóm tắt</small>
+                <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text)' }}>{selectedDoc.title}</div>
+              </div>
+
+              {selectedDoc.description && (
+                <div style={{ marginBottom: '20px' }}>
+                  <small style={{ color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Nội dung chi tiết</small>
+                  <div style={{
+                    whiteSpace: 'pre-wrap',
+                    padding: '12px',
+                    border: '1px solid var(--line)',
+                    borderRadius: '6px',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    background: 'var(--bg-input, #fff)'
+                  }}>
+                    {selectedDoc.description}
+                  </div>
+                </div>
+              )}
+
+              {/* Tệp đính kèm */}
+              <div style={{ marginTop: '20px', borderTop: '1px solid var(--line)', paddingTop: '20px' }}>
+                <h3>Tệp đính kèm</h3>
+                {loadingFiles ? (
+                  <p>Đang tải danh sách tệp...</p>
+                ) : docFiles.length === 0 ? (
+                  <p style={{ color: 'var(--muted)' }}>Không có tệp đính kèm nào.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                    {docFiles.map(file => {
+                      const isIssued = file.file_kind === 'issued_attachment'
+                      return (
+                        <div
+                          key={file.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 12px',
+                            border: '1px solid var(--line)',
+                            borderRadius: '6px',
+                            background: isIssued ? 'rgba(8, 123, 56, 0.03)' : 'var(--bg-card)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontWeight: 500 }}>{file.name}</span>
+                            <span style={{ fontSize: '0.8rem', color: isIssued ? '#087b38' : 'var(--muted)' }}>
+                              {isIssued ? 'Tệp lưu trữ chính thức' : 'Tài liệu đính kèm'}
+                            </span>
+                          </div>
+                          <a
+                            href={file.url || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-download"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              color: 'var(--blue)',
+                              textDecoration: 'none',
+                              fontWeight: 500
+                            }}
+                          >
+                            <Download size={16} />
+                            Tải về
+                          </a>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-form-footer">
+              <button type="button" className="btn-cancel" onClick={() => setSelectedDoc(null)}>Đóng</button>
+            </div>
+          </div>
         </div>
       )}
     </>
