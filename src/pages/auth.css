@@ -12,6 +12,14 @@
   font-family: 'Poppins', sans-serif;
 }
 
+.auth-theme-switch {
+  --toggle-size: 11px;
+  position: fixed;
+  top: 22px;
+  right: 26px;
+  z-index: 50;
+}
+
 /* --- Khung viền lớn tỷ lệ chuẩn 16:9 --- */
 .login-card {
   width: 1024px;
@@ -220,4 +228,56 @@
   background-color: #dcfce7;
   border: 1px solid #22c55e;
   color: #15803d;
+}
+
+:root[data-theme='dark'] .auth-wrapper {
+  background: #212121;
+}
+
+:root[data-theme='dark'] .login-card {
+  background-color: #212121;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-theme='dark'] .bg-svg-item g[fill="#ffffff"] {
+  fill: #2a2a2a;
+}
+
+:root[data-theme='dark'] .form-container h1 {
+  color: #dbeafe;
+}
+
+:root[data-theme='dark'] .input-box {
+  background: #333333;
+  border-color: #555555;
+}
+
+:root[data-theme='dark'] .input-box i {
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .input-box input {
+  background: transparent;
+  color: #f8fafc;
+}
+
+:root[data-theme='dark'] .input-box input::placeholder,
+:root[data-theme='dark'] .or-divider {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .or-divider::before,
+:root[data-theme='dark'] .or-divider::after {
+  border-color: #475569;
+}
+
+:root[data-theme='dark'] .btn-signin {
+  background-color: #f5f5f5;
+  color: #212121;
+}
+
+:root[data-theme='dark'] .btn-signup {
+  background-color: #3a3a3a;
+  color: #f5f5f5;
+  border: 1px solid #555555;
 }

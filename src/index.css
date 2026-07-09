@@ -9,10 +9,16 @@
 
 :root {
   --blue: #1a56a0;
+  --blue2: #1443a0;
   --blue-dark: #1443a0;
   --blue-light: rgba(26, 86, 160, 0.12);
   --gold: #f5b942;
   --gold-dark: #e5a830;
+  --surface: #ffffff;
+  --surface-soft: #f8fbff;
+  --page-bg: #f6f7fc;
+  --line: #d9deea;
+  --muted: #667085;
   --gray-100: #f3f4f6;
   --gray-200: #e5e7eb;
   --gray-400: #9ca3af;
@@ -22,12 +28,33 @@
   text-rendering: optimizeLegibility;
 }
 
+:root[data-theme='dark'] {
+  --blue: #1f5f9f;
+  --blue2: #164877;
+  --blue-dark: #17446f;
+  --blue-light: rgba(94, 165, 255, 0.16);
+  --gold: #f6c45d;
+  --gold-dark: #d99c2b;
+  --surface: #2a2a2a;
+  --surface-soft: #333333;
+  --page-bg: #212121;
+  --line: #444444;
+  --muted: #9ca3af;
+  --gray-100: #172033;
+  --gray-200: #263348;
+  --gray-400: #94a3b8;
+  --gray-600: #cbd5e1;
+  --text: #e5e7eb;
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: var(--text);
-  background: #f6f7fc;
+  background: var(--page-bg);
+  transition: background-color .2s ease, color .2s ease;
 }
 
 button, input, textarea, select {

@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import { ThemeSwitch } from '../components/ThemeSwitch'
 import { supabase } from '../lib/supabase'
 import './auth.css'
 
 type AuthMode = 'login' | 'register'
 
-export default function AuthPage() {
+export default function AuthPage({ theme, onToggleTheme }: { theme: 'light' | 'dark'; onToggleTheme: () => void }) {
   const [mode, setMode] = useState<AuthMode>('login')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -81,6 +82,7 @@ export default function AuthPage() {
 
   return (
     <div className="auth-wrapper">
+      <ThemeSwitch checked={theme === 'dark'} onChange={onToggleTheme} className="auth-theme-switch" />
       <div className="login-card">
         
         {/* --- Background SVG Clouds Container (Slides left and right) --- */}
