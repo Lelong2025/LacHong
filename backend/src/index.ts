@@ -44,14 +44,20 @@ type SMTPTransportOptionsWithNetwork = SMTPTransport.Options & {
   family: 4
 }
 
+const smtpHost = required('SMTP_HOST')
+const smtpConnectHost = process.env.SMTP_CONNECT_HOST || smtpHost
+
 const mailerOptions: SMTPTransportOptionsWithNetwork = {
-  host: required('SMTP_HOST'),
+  host: smtpConnectHost,
   port: Number(process.env.SMTP_PORT ?? 587),
   secure: process.env.SMTP_SECURE === 'true',
   family: 4,
   connectionTimeout: 10_000,
   greetingTimeout: 10_000,
   socketTimeout: 20_000,
+  tls: smtpConnectHost === smtpHost ? undefined : {
+    servername: smtpHost,
+  },
   auth: {
     user: required('SMTP_USER'),
     pass: required('SMTP_PASS'),
