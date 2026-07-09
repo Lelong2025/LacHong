@@ -1,9 +1,11 @@
 import { Eye, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../components/EmptyState'
+import { DataViewToggle, type DataViewMode } from '../components/DataViewToggle'
 import { useNotifier } from '../contexts/useNotifier'
 import { supabase } from '../lib/supabase'
 import { emitSessionExpired } from '../lib/sessionExpiry'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { DocumentRow } from '../types'
 
 const typeLabels: Record<string, string> = {
@@ -24,6 +26,8 @@ export function TrashPage() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [selectedDoc, setSelectedDoc] = useState<DocumentRow | null>(null)
+  const [viewMode, setViewMode] = useState<DataViewMode>('table')
+  const forceGrid = useMediaQuery('(max-width: 760px)')
 
   async function callBackend<T = { ok: boolean }>(path: string, body: Record<string, unknown>): Promise<T> {
     if (!backendUrl) throw new Error('Thiếu VITE_BACKEND_URL trong .env.')
@@ -150,9 +154,10 @@ export function TrashPage() {
           <Search />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo tiêu đề hoặc nội dung..." />
         </label>
+        <DataViewToggle value={viewMode} onChange={setViewMode} forceGrid={forceGrid} />
         <span>{filteredItems.length} hồ sơ</span>
       </section>
-      <section className="table-card records-table-card">
+      <section className={`table-card records-table-card data-view-card ${forceGrid || viewMode === 'grid' ? 'is-grid-view' : 'is-table-view'}`}>
         <table className="records-table trash-table">
           <thead>
             <tr>
@@ -196,6 +201,35 @@ export function TrashPage() {
             {!filteredItems.length && <tr><td colSpan={5}><EmptyState message="Thùng rác đang trống." /></td></tr>}
           </tbody>
         </table>
+        <div className="data-grid">
+          {filteredItems.map(document => (
+            <article className="data-card" key={document.id}>
+              <div className="data-card-title-row">
+                <span className="status">{typeLabels[document.type] || document.type}</span>
+                <span>{document.deleted_at ? new Date(document.deleted_at).toLocaleDateString('vi-VN') : '—'}</span>
+              </div>
+              <button type="button" className="data-card-main hover-link" onClick={() => setSelectedDoc(document)}>
+                {documentContent(document)}
+              </button>
+              <div className="data-card-meta">
+                <span>Năm</span>
+                <b>{document.document_year || new Date(document.created_at).getFullYear()}</b>
+              </div>
+              <div className="row-actions record-row-actions trash-row-actions data-card-actions">
+                <button className="ghost compact" title="Xem chi tiết" onClick={() => setSelectedDoc(document)}>
+                  <Eye />
+                </button>
+                <button className="primary compact restore-icon-button" title="Khôi phục hồ sơ" onClick={() => restore(document)}>
+                  <RotateCcw />
+                </button>
+                <button className="danger-icon" title="Xóa vĩnh viễn" onClick={() => purge(document)}>
+                  <Trash2 />
+                </button>
+              </div>
+            </article>
+          ))}
+          {!filteredItems.length && <EmptyState message="Thùng rác đang trống." />}
+        </div>
       </section>
 
       {selectedDoc && (

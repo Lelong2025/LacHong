@@ -4,8 +4,10 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNotifier } from '../contexts/useNotifier'
 import { EmptyState } from '../components/EmptyState'
 import { ListFileDoc } from '../components/ListFileDoc'
+import { DataViewToggle, type DataViewMode } from '../components/DataViewToggle'
 import { supabase } from '../lib/supabase'
 import { emitSessionExpired } from '../lib/sessionExpiry'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { AssigneeOption, DocumentRow } from '../types'
 
 const labels: Record<string, string> = {
@@ -101,6 +103,8 @@ export function DocumentsPage() {
   const [fileRefreshKey, setFileRefreshKey] = useState(0)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [savingDocument, setSavingDocument] = useState(false)
+  const [viewMode, setViewMode] = useState<DataViewMode>('table')
+  const forceGrid = useMediaQuery('(max-width: 760px)')
 
   const [selectedDoc, setSelectedDoc] = useState<DocumentRow | null>(null)
   const [docFiles, setDocFiles] = useState<{ id: string; name: string; object_path: string | null; file_kind: string }[]>([])
@@ -564,10 +568,11 @@ export function DocumentsPage() {
             Xóa {selectedDeletableItems.length} hồ sơ
           </button>
         )}
+        <DataViewToggle value={viewMode} onChange={setViewMode} forceGrid={forceGrid} />
         <span>{filteredItems.length} hồ sơ</span>
       </section>
       {error && <p className="error">{error}</p>}
-      <section className="table-card records-table-card">
+      <section className={`table-card records-table-card data-view-card ${forceGrid || viewMode === 'grid' ? 'is-grid-view' : 'is-table-view'}`}>
         <table className="records-table documents-table">
           <thead>
             <tr>
@@ -636,6 +641,50 @@ export function DocumentsPage() {
             {!filteredItems.length && <tr><td colSpan={5}><EmptyState message="Chưa có hồ sơ nào." /></td></tr>}
           </tbody>
         </table>
+        <div className="data-grid document-data-grid">
+          {filteredItems.map((document) => {
+            const canEdit = document.created_by === user?.id
+            const canDelete = isAdmin || document.created_by === user?.id
+            return (
+              <article className="data-card" key={document.id}>
+                <div className="data-card-title-row">
+                  <span className="status">{labels[document.type] || document.type}</span>
+                  {canDelete && (
+                    <input
+                      type="checkbox"
+                      aria-label={`Chọn hồ sơ ${document.title}`}
+                      checked={selectedIds.has(document.id)}
+                      onChange={() => toggleSelect(document.id)}
+                    />
+                  )}
+                </div>
+                <button type="button" className="data-card-main hover-link" onClick={() => handleViewDetail(document)}>
+                  {documentContent(document)}
+                </button>
+                <div className="data-card-meta">
+                  <span>Năm</span>
+                  <b>{document.document_year || new Date(document.created_at).getFullYear()}</b>
+                </div>
+                <div className="row-actions record-row-actions document-row-actions data-card-actions">
+                  <button className="ghost compact" title="Xem chi tiết" onClick={() => handleViewDetail(document)}>
+                    <Eye />
+                  </button>
+                  {canEdit && (
+                    <button className="ghost compact" title="Sửa hồ sơ" onClick={() => openEditForm(document)}>
+                      <Pencil />
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button className="danger-icon" title="Xóa hồ sơ" onClick={() => remove(document)}>
+                      <Trash2 />
+                    </button>
+                  )}
+                </div>
+              </article>
+            )
+          })}
+          {!filteredItems.length && <EmptyState message="Chưa có hồ sơ nào." />}
+        </div>
       </section>
 
       {/* Modal Tạo hồ sơ mới */}

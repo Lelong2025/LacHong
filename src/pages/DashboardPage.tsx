@@ -1,9 +1,11 @@
 import { Archive, CheckCircle2, Clock3, FileText, Hash, Send, Stamp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../components/EmptyState'
+import { DataViewToggle, type DataViewMode } from '../components/DataViewToggle'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { emitSessionExpired } from '../lib/sessionExpiry'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { DocumentRow } from '../types'
 
 const typeLabels: Record<string, string> = {
@@ -50,6 +52,8 @@ export function DashboardPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [error, setError] = useState('')
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()))
+  const [viewMode, setViewMode] = useState<DataViewMode>('table')
+  const forceGrid = useMediaQuery('(max-width: 760px)')
 
   const load = useCallback(async () => {
     let query = supabase
@@ -195,9 +199,10 @@ export function DashboardPage() {
       </section>
 
       {/* === HỒ SƠ GẦN ĐÂY === */}
-      <section className="table-card">
-        <div style={{ padding: '1rem 1.2rem', borderBottom: '1px solid var(--line)' }}>
+      <section className={`table-card data-view-card ${forceGrid || viewMode === 'grid' ? 'is-grid-view' : 'is-table-view'}`}>
+        <div className="table-card-header">
           <strong style={{ fontSize: '.9rem' }}>Hồ sơ cập nhật gần nhất</strong>
+          <DataViewToggle value={viewMode} onChange={setViewMode} forceGrid={forceGrid} />
         </div>
         <table>
           <thead>
@@ -222,6 +227,27 @@ export function DashboardPage() {
             )}
           </tbody>
         </table>
+        <div className="data-grid">
+          {recentDocs.map((doc) => (
+            <article className="data-card" key={doc.id}>
+              <div className="data-card-title-row">
+                <span className="status">{typeLabels[doc.type] || doc.type}</span>
+                <span>{new Date(doc.updated_at).toLocaleDateString('vi-VN')}</span>
+              </div>
+              <div className="data-card-main text-only">
+                <b>{doc.title}</b>
+                {doc.description && <small>{doc.description}</small>}
+              </div>
+              {isAdmin && (
+                <div className="data-card-meta">
+                  <span>Người thực hiện</span>
+                  <b>{assigneeDisplayName(doc.assignee_name) || '—'}</b>
+                </div>
+              )}
+            </article>
+          ))}
+          {!recentDocs.length && <EmptyState message="Chưa có hồ sơ nào." />}
+        </div>
       </section>
     </>
   )

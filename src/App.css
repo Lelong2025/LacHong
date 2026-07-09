@@ -2174,6 +2174,144 @@ td small {
   background: rgba(22, 72, 119, .025);
 }
 
+.table-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  flex: 0 0 auto;
+}
+
+.view-toggle button {
+  width: 34px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.view-toggle button.active {
+  background: #164877;
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(22, 72, 119, .18);
+}
+
+.view-toggle button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.view-toggle svg {
+  width: 17px;
+  height: 17px;
+}
+
+.data-grid {
+  display: none;
+  grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+  gap: .85rem;
+  padding: 1rem;
+}
+
+.data-view-card.is-grid-view table {
+  display: none;
+}
+
+.data-view-card.is-grid-view .data-grid {
+  display: grid;
+}
+
+.data-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: .95rem;
+  display: grid;
+  gap: .8rem;
+  min-width: 0;
+}
+
+.data-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.data-card-title-row input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--blue);
+}
+
+.data-card-main {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: var(--text, #20283a);
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.data-card-main.text-only {
+  cursor: default;
+}
+
+.data-card-main small {
+  display: -webkit-box;
+  margin-top: .35rem;
+  color: var(--muted);
+  font-weight: 500;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.data-card-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .85rem;
+  border-top: 1px solid #eef2f7;
+  padding-top: .7rem;
+  color: var(--muted);
+  font-size: .84rem;
+}
+
+.data-card-meta b {
+  color: var(--text, #20283a);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.data-card-actions {
+  justify-content: flex-end;
+  border-top: 1px solid #eef2f7;
+  padding-top: .75rem;
+}
+
 .select-column {
   width: 44px;
   min-width: 44px;
@@ -2432,6 +2570,35 @@ td small {
   background: rgba(255, 255, 255, .035);
 }
 
+:root[data-theme='dark'] .view-toggle {
+  background: #242424;
+  border-color: var(--line);
+}
+
+:root[data-theme='dark'] .view-toggle button {
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .view-toggle button.active {
+  background: #f5f5f5;
+  color: #212121;
+}
+
+:root[data-theme='dark'] .data-card {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+:root[data-theme='dark'] .data-card-main,
+:root[data-theme='dark'] .data-card-meta b {
+  color: #f5f5f5;
+}
+
+:root[data-theme='dark'] .data-card-meta,
+:root[data-theme='dark'] .data-card-actions {
+  border-color: #3a3a3a;
+}
+
 :root[data-theme='dark'] .modal-container-style strong,
 :root[data-theme='dark'] .modal-container-style h3,
 :root[data-theme='dark'] .modal-container-style p,
@@ -2685,6 +2852,38 @@ td small {
 }
 
 @media (max-width: 760px) {
+  .data-view-card table {
+    display: none;
+  }
+
+  .data-view-card .data-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: .85rem;
+  }
+
+  .table-card-header {
+    padding: .85rem;
+  }
+
+  .toolbar .view-toggle {
+    order: 3;
+    margin-left: auto;
+  }
+
+  .toolbar label {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .data-card {
+    padding: .85rem;
+  }
+
+  .data-card-actions {
+    justify-content: flex-start;
+  }
+
   .app-toast-stack {
     left: 16px;
     right: 16px;

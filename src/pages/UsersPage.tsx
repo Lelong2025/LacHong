@@ -1,13 +1,17 @@
 import { Search, ShieldCheck, ShieldOff } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { DataViewToggle, type DataViewMode } from '../components/DataViewToggle'
 import { supabase } from '../lib/supabase'
 import { emitSessionExpired } from '../lib/sessionExpiry'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { Profile } from '../types'
 
 export function UsersPage() {
   const [items, setItems] = useState<Profile[]>([])
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
+  const [viewMode, setViewMode] = useState<DataViewMode>('table')
+  const forceGrid = useMediaQuery('(max-width: 760px)')
 
   const load = useCallback(async () => {
     let query = supabase.from('profiles').select('*').order('created_at', { ascending: false })
@@ -50,10 +54,11 @@ export function UsersPage() {
           <Search />
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo email hoặc tên..." />
         </label>
+        <DataViewToggle value={viewMode} onChange={setViewMode} forceGrid={forceGrid} />
         <span>{items.length} người dùng</span>
       </section>
       {error && <p className="error">{error}</p>}
-      <section className="table-card">
+      <section className={`table-card data-view-card ${forceGrid || viewMode === 'grid' ? 'is-grid-view' : 'is-table-view'}`}>
         <table>
           <thead>
             <tr>
@@ -85,6 +90,29 @@ export function UsersPage() {
             {!items.length && <tr><td colSpan={4} className="empty">Chưa có người dùng.</td></tr>}
           </tbody>
         </table>
+        <div className="data-grid">
+          {items.map((profile) => (
+            <article className="data-card" key={profile.id}>
+              <div className="data-card-title-row">
+                <span className="status">{profile.role}</span>
+                <span className={profile.is_active ? 'status approved' : 'status rejected'}>{profile.is_active ? 'Đang hoạt động' : 'Đã khóa'}</span>
+              </div>
+              <div className="data-card-main text-only">
+                <b>{profile.full_name || profile.email}</b>
+                <small>{profile.email}</small>
+              </div>
+              {profile.role === 'client' && (
+                <div className="data-card-actions">
+                  <button className={profile.is_active ? 'danger-icon text-button' : 'primary compact'} onClick={() => toggleActive(profile)}>
+                    {profile.is_active ? <ShieldOff /> : <ShieldCheck />}
+                    {profile.is_active ? 'Khóa' : 'Mở khóa'}
+                  </button>
+                </div>
+              )}
+            </article>
+          ))}
+          {!items.length && <div className="empty">Chưa có người dùng.</div>}
+        </div>
       </section>
     </>
   )

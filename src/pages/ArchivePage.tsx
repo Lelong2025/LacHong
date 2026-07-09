@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { EmptyState } from '../components/EmptyState'
+import { DataViewToggle, type DataViewMode } from '../components/DataViewToggle'
 import { supabase } from '../lib/supabase'
 import { emitSessionExpired } from '../lib/sessionExpiry'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { DocumentRow } from '../types'
 
 const typeLabels: Record<string, string> = {
@@ -20,6 +22,8 @@ export function ArchivePage() {
   const [items, setItems] = useState<DocumentRow[]>([])
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
+  const [viewMode, setViewMode] = useState<DataViewMode>('table')
+  const forceGrid = useMediaQuery('(max-width: 760px)')
 
   const load = useCallback(async () => {
     let query = supabase
@@ -66,9 +70,10 @@ export function ArchivePage() {
             placeholder="Tìm theo tiêu đề..."
           />
         </label>
+        <DataViewToggle value={viewMode} onChange={setViewMode} forceGrid={forceGrid} />
         <span>{items.length} hồ sơ</span>
       </section>
-      <section className="table-card">
+      <section className={`table-card data-view-card ${forceGrid || viewMode === 'grid' ? 'is-grid-view' : 'is-table-view'}`}>
         <table>
           <thead>
             <tr>
@@ -96,6 +101,31 @@ export function ArchivePage() {
             )}
           </tbody>
         </table>
+        <div className="data-grid">
+          {items.map(doc => (
+            <article className="data-card" key={doc.id}>
+              <div className="data-card-title-row">
+                <span className="status">{typeLabels[doc.type] || doc.type}</span>
+                <span>{new Date(doc.updated_at).toLocaleDateString('vi-VN')}</span>
+              </div>
+              <div className="data-card-main text-only">
+                <b>{doc.title}</b>
+                {doc.description && <small>{doc.description}</small>}
+              </div>
+              <div className="data-card-meta">
+                <span>Năm</span>
+                <b>{doc.document_year || new Date(doc.created_at).getFullYear()}</b>
+              </div>
+              {isAdmin && (
+                <div className="data-card-meta">
+                  <span>Người thực hiện</span>
+                  <b>{doc.assignee_name || '—'}</b>
+                </div>
+              )}
+            </article>
+          ))}
+          {!items.length && <EmptyState message="Chưa có hồ sơ nào được lưu trữ." />}
+        </div>
       </section>
     </>
   )

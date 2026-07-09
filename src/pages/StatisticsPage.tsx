@@ -2,8 +2,10 @@ import { FileText, Hash, CheckCircle2, Send, Clock3, Stamp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { EmptyState } from '../components/EmptyState'
+import { DataViewToggle, type DataViewMode } from '../components/DataViewToggle'
 import { supabase } from '../lib/supabase'
 import { emitSessionExpired } from '../lib/sessionExpiry'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { DocumentRow } from '../types'
 
 const typeList = [
@@ -32,6 +34,8 @@ export function StatisticsPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [error, setError] = useState('')
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()))
+  const [viewMode, setViewMode] = useState<DataViewMode>('table')
+  const forceGrid = useMediaQuery('(max-width: 760px)')
 
   const load = useCallback(async () => {
     let query = supabase
@@ -176,9 +180,10 @@ export function StatisticsPage() {
       </section>
 
       {/* Bảng thống kê chi tiết theo loại */}
-      <section className="table-card" style={{ marginBottom: '1.25rem' }}>
-        <div style={{ padding: '1rem 1.2rem', borderBottom: '1px solid var(--line)' }}>
+      <section className={`table-card data-view-card ${forceGrid || viewMode === 'grid' ? 'is-grid-view' : 'is-table-view'}`} style={{ marginBottom: '1.25rem' }}>
+        <div className="table-card-header">
           <strong style={{ fontSize: '.9rem' }}>Chi tiết theo loại hồ sơ</strong>
+          <DataViewToggle value={viewMode} onChange={setViewMode} forceGrid={forceGrid} />
         </div>
         <table>
           <thead>
@@ -203,6 +208,26 @@ export function StatisticsPage() {
             ))}
           </tbody>
         </table>
+        <div className="data-grid stats-data-grid">
+          {typeStats.map(({ key, label, icon: Icon, total }) => (
+            <article className="data-card" key={key} style={total === 0 ? { opacity: 0.55 } : {}}>
+              <div className="data-card-title-row">
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Icon size={16} style={{ color: 'var(--blue)', flexShrink: 0 }} />
+                  <b>{label}</b>
+                </span>
+              </div>
+              <div className="data-card-meta">
+                <span>Tổng</span>
+                <b>{total}</b>
+              </div>
+              <div className="data-card-meta">
+                <span>Lưu trữ</span>
+                <b style={{ color: total > 0 ? '#087b38' : 'var(--muted)' }}>{total}</b>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
 
     </>
