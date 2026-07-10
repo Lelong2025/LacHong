@@ -16,7 +16,6 @@ const port = Number(process.env.PORT ?? 3001)
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
 const publicSiteUrl = process.env.PUBLIC_SITE_URL ?? frontendOrigin
 const siteUrl = publicSiteUrl.endsWith('/') ? publicSiteUrl : `${publicSiteUrl}/`
-const publicSettingsUrl = `${siteUrl}#/settings`
 const normalizeOrigin = (origin: string) => {
   try {
     return new URL(origin).origin
@@ -237,7 +236,7 @@ app.post('/api/invite-user', requireUser, async (req, res) => {
   }
 
   const { error } = await supabase.auth.admin.inviteUserByEmail(email, {
-    redirectTo: publicSettingsUrl,
+    redirectTo: siteUrl,
   })
 
   if (error) {
@@ -921,7 +920,7 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
               Vui lòng nhấn vào nút bên dưới để truy cập hệ thống và xem chi tiết hồ sơ.
             </p>
             <div style="text-align: center; margin: 30px 0 15px 0;">
-              <a href="${publicSettingsUrl}" style="background-color: #0056b3; color: #ffffff; padding: 12px 30px; text-decoration: none; font-size: 15px; font-weight: bold; border-radius: 5px; display: inline-block;">
+              <a href="${siteUrl}" style="background-color: #0056b3; color: #ffffff; padding: 12px 30px; text-decoration: none; font-size: 15px; font-weight: bold; border-radius: 5px; display: inline-block;">
                 Xem chi tiết hồ sơ
               </a>
             </div>
@@ -936,7 +935,7 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
       // 1. Mời đăng ký qua Supabase Admin API
       try {
         await supabase.auth.admin.inviteUserByEmail(email, {
-          redirectTo: publicSettingsUrl,
+          redirectTo: siteUrl,
         })
       } catch (err) {
         console.error('Error inviting user:', err)
