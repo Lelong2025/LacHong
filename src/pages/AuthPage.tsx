@@ -150,7 +150,7 @@ export default function AuthPage({
     setResetLoading(true)
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: getAuthCallbackUrl('settings'),
+        redirectTo: getAuthCallbackUrl(),
       })
       if (error) throw error
       setSuccess('Đã gửi email đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.')
