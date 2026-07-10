@@ -14,6 +14,14 @@ type AuthPageProps = {
   onTransitionComplete?: (session: Session) => void
 }
 
+function getAuthRedirectUrl() {
+  const basePath = import.meta.env.BASE_URL || '/'
+  const normalizedBase = basePath.startsWith('/') ? basePath : `/${basePath}`
+  const redirectUrl = new URL(normalizedBase, window.location.origin)
+  redirectUrl.hash = '/'
+  return redirectUrl.toString()
+}
+
 export default function AuthPage({ 
   theme, 
   onToggleTheme, 
@@ -114,6 +122,7 @@ export default function AuthPage({
         password,
         options: {
           data: { full_name: fullName.trim() },
+          emailRedirectTo: getAuthRedirectUrl(),
         },
       })
       if (error) throw error
@@ -141,7 +150,7 @@ export default function AuthPage({
     setResetLoading(true)
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}${window.location.pathname}`,
+        redirectTo: getAuthRedirectUrl(),
       })
       if (error) throw error
       setSuccess('Đã gửi email đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.')
