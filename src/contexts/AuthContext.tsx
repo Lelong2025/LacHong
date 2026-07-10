@@ -27,11 +27,13 @@ function cleanAuthCallbackUrl() {
   const hash = window.location.hash
   const params = new URLSearchParams(window.location.search)
   const isAuthCallback = hash.includes('access_token=') || hash.includes('refresh_token=') || hash.includes('error=')
-  const shouldOpenSettings = params.get('next') === 'settings'
+  const shouldOpenSettings = params.get('next') === 'settings' || hash === '#settings'
   if (!isAuthCallback && !shouldOpenSettings) return
 
   const next = shouldOpenSettings ? '/settings' : '/'
   const nextHash = `#${next}`
+  if (window.location.hash === nextHash && !window.location.search) return
+
   const previousUrl = window.location.href
   window.history.replaceState(null, document.title, `${window.location.pathname}${nextHash}`)
   window.dispatchEvent(new HashChangeEvent('hashchange', {
