@@ -718,6 +718,19 @@ td small {
   line-height: 1.45;
 }
 
+.modal-container-style .assignee-detail-list,
+.modal-container-style .detail-content-box,
+.modal-container-style .detail-content-box>div {
+  color: var(--text, #20283a);
+}
+
+:root[data-theme='dark'] .modal-container-style .assignee-detail-list,
+:root[data-theme='dark'] .modal-container-style .detail-content-box,
+:root[data-theme='dark'] .modal-container-style .detail-content-box>div {
+  background: var(--bg-card);
+  color: var(--text);
+}
+
 .trash-detail-modal {
   max-width: 700px;
   width: 90%;

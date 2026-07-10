@@ -16,6 +16,8 @@
   --gold-dark: #e5a830;
   --surface: #ffffff;
   --surface-soft: #f8fbff;
+  --bg-card: #f8fafc;
+  --bg-input: #ffffff;
   --page-bg: #f6f7fc;
   --line: #d9deea;
   --muted: #667085;
@@ -37,6 +39,8 @@
   --gold-dark: #d99c2b;
   --surface: #2a2a2a;
   --surface-soft: #333333;
+  --bg-card: #303030;
+  --bg-input: #333333;
   --page-bg: #212121;
   --line: #444444;
   --muted: #9ca3af;

@@ -994,7 +994,8 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
       const { error: pendingShareError } = await supabase.from('document_shares').insert({
         document_id: documentId,
         pending_email: email,
-        assigned_by: currentUser.id
+        assigned_by: currentUser.id,
+        shared_by: currentUser.id
       })
 
       if (pendingShareError) {
