@@ -110,14 +110,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single()
+        .maybeSingle()
       
       if (error) {
         if (emitSessionExpired(error)) return
         throw error
       }
-      setProfile(data)
-      prevIsActive.current = (data as Profile).is_active
+
+      let nextProfile = data as Profile | null
+      if (!nextProfile) {
+        const { data: ensuredProfile, error: ensureError } = await supabase
+          .rpc('ensure_current_profile')
+          .single()
+
+        if (ensureError) {
+          if (emitSessionExpired(ensureError)) return
+          throw ensureError
+        }
+
+        nextProfile = ensuredProfile as Profile
+      }
+
+      setProfile(nextProfile)
+      prevIsActive.current = nextProfile.is_active
     } catch (error) {
       console.error('Error fetching profile:', error)
     } finally {

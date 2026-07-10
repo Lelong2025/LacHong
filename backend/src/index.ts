@@ -53,6 +53,51 @@ app.use(express.json({ limit: '8mb' }))
 
 type AuthedRequest = express.Request & { user?: User }
 
+async function ensureProfileForUser(user: User) {
+  const email = String(user.email || '').trim().toLowerCase()
+  if (!email) return { profile: null, error: new Error('Missing user email') }
+
+  const { data: existingProfile } = await supabase
+    .from('profiles')
+    .select('id,email,full_name,role,is_active')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (existingProfile) return { profile: existingProfile, error: null }
+
+  await supabase
+    .from('profiles')
+    .update({
+      email: `${email}.orphan.${user.id.replace(/-/g, '')}@local`,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('email', email)
+    .neq('id', user.id)
+
+  const fullName = typeof user.user_metadata?.full_name === 'string'
+    ? user.user_metadata.full_name.trim()
+    : ''
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .upsert({
+      id: user.id,
+      email,
+      full_name: fullName || null,
+      role: 'client',
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' })
+    .select('id,email,full_name,role,is_active')
+    .single()
+
+  if (!error) {
+    await claimPendingDocumentShares(user.id)
+  }
+
+  return { profile, error }
+}
+
 async function requireUser(req: AuthedRequest, res: express.Response, next: express.NextFunction) {
   const token = req.header('authorization')?.replace(/^Bearer\s+/i, '')
   if (!token) {
@@ -66,11 +111,7 @@ async function requireUser(req: AuthedRequest, res: express.Response, next: expr
     return
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('id,is_active')
-    .eq('id', data.user.id)
-    .single()
+  const { profile, error: profileError } = await ensureProfileForUser(data.user)
 
   if (profileError || !profile?.is_active) {
     res.status(403).json({ error: 'Forbidden' })
@@ -892,13 +933,18 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
 
     if (assigneeId) {
       // 1. Lưu thông tin chia sẻ tài liệu
-      await supabase.from('document_shares').insert({
+      const { error: shareError } = await supabase.from('document_shares').insert({
         document_id: documentId,
         client_id: assigneeId,
         shared_with: assigneeId,
         shared_by: currentUser.id,
         assigned_by: currentUser.id
       })
+
+      if (shareError) {
+        res.status(400).json({ error: `Không thể gắn hồ sơ cho ${email}: ${shareError.message}` })
+        return
+      }
 
       // 2. Tạo thông báo in-app (Bỏ qua người thực hiện chính vì DB trigger tự sinh)
       if (assigneeId !== document.assignee_id) {
@@ -952,7 +998,8 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
       })
 
       if (pendingShareError) {
-        console.error(`Unable to create pending share for ${email}:`, pendingShareError.message)
+        res.status(400).json({ error: `Không thể gắn hồ sơ chờ cho ${email}: ${pendingShareError.message}` })
+        return
       }
 
       // 2. Mời đăng ký qua Supabase Admin API
