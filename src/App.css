@@ -784,18 +784,58 @@ td small {
 }
 
 .inactive-account {
-  gap: .5rem;
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(26, 86, 160, .08), transparent 34%),
+    var(--page-bg);
   text-align: center
 }
 
+.inactive-account-card {
+  width: min(460px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: .9rem;
+  padding: 1.5rem 1.25rem;
+}
+
+.inactive-account-illustration {
+  width: min(315px, 76vw);
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 22px 38px rgba(15, 23, 42, .14));
+  margin-bottom: .25rem;
+}
+
 .inactive-account h1 {
-  font-size: 1.35rem;
-  margin: 0
+  font-size: clamp(1.45rem, 4vw, 1.9rem);
+  line-height: 1.12;
+  margin: 0;
+  color: var(--blue);
 }
 
 .inactive-account p {
   color: var(--muted);
-  margin: 0
+  margin: 0;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.inactive-account .primary {
+  margin-top: .55rem;
+  min-width: 122px;
+  box-shadow: 0 12px 24px rgba(26, 86, 160, .18);
+}
+
+:root[data-theme='dark'] .inactive-account {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(94, 165, 255, .11), transparent 34%),
+    var(--page-bg);
+}
+
+:root[data-theme='dark'] .inactive-account-illustration {
+  filter: drop-shadow(0 22px 38px rgba(0, 0, 0, .36));
 }
 
 .modal form {

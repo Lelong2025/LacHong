@@ -16,6 +16,7 @@ import { UsersPage } from './pages/UsersPage'
 import './App.css'
 
 type Theme = 'light' | 'dark'
+const lockedAccountIllustration = `${import.meta.env.BASE_URL}locked-account.svg`
 
 function getInitialTheme(): Theme {
   const saved = localStorage.getItem('theme')
@@ -103,11 +104,14 @@ function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () =
   if (delayedProfile && !delayedProfile.is_active && !profileLockedOut) {
     return (
       <div className="splash inactive-account">
-        <h1>Tài khoản đang bị khóa</h1>
-        <p>Vui lòng liên hệ quản trị viên để được hỗ trợ.</p>
-        <button onClick={() => void signOut()} className="primary" style={{ marginTop: '1rem' }}>
-          Đăng xuất
-        </button>
+        <section className="inactive-account-card">
+          <img src={lockedAccountIllustration} alt="" className="inactive-account-illustration" />
+          <h1>Tài khoản đang bị khóa</h1>
+          <p>Vui lòng liên hệ quản trị viên để được hỗ trợ.</p>
+          <button onClick={() => void signOut()} className="primary">
+            Đăng xuất
+          </button>
+        </section>
       </div>
     )
   }
