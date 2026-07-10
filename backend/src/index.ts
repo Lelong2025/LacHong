@@ -224,6 +224,16 @@ async function getCurrentProfile(userId: string) {
   return data
 }
 
+async function claimPendingDocumentShares(profileId: string) {
+  const { error } = await supabase.rpc('claim_pending_document_shares_for_profile', {
+    p_profile_id: profileId,
+  })
+
+  if (error) {
+    console.error('Unable to claim pending document shares:', error.message)
+  }
+}
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true })
 })
@@ -311,6 +321,8 @@ app.post('/api/update-profile-settings', requireUser, async (req, res) => {
     res.status(400).json({ error: error.message })
     return
   }
+
+  await claimPendingDocumentShares(currentUser.id)
 
   res.json({ ok: true })
 })
@@ -932,7 +944,18 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
       )
     } else {
       // User chưa đăng ký
-      // 1. Mời đăng ký qua Supabase Admin API
+      // 1. Lưu quyền chờ theo email để khi tài khoản được tạo sẽ tự thấy hồ sơ
+      const { error: pendingShareError } = await supabase.from('document_shares').insert({
+        document_id: documentId,
+        pending_email: email,
+        assigned_by: currentUser.id
+      })
+
+      if (pendingShareError) {
+        console.error(`Unable to create pending share for ${email}:`, pendingShareError.message)
+      }
+
+      // 2. Mời đăng ký qua Supabase Admin API
       try {
         await supabase.auth.admin.inviteUserByEmail(email, {
           redirectTo: siteUrl,
@@ -941,7 +964,7 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
         console.error('Error inviting user:', err)
       }
 
-      // 2. Gửi email thông báo được giao hồ sơ + mời đăng ký
+      // 3. Gửi email thông báo được giao hồ sơ + mời đăng ký
       sendMailInBackground(
         email,
         'Lời mời tham gia hệ thống và phân công hồ sơ',
