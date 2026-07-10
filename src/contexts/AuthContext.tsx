@@ -23,6 +23,12 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+function cleanAuthCallbackUrl() {
+  const hash = window.location.hash
+  if (!hash.includes('access_token=') && !hash.includes('refresh_token=') && !hash.includes('error=')) return
+  window.history.replaceState(null, document.title, `${window.location.pathname}${window.location.search}#/`)
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
@@ -41,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setSession(session)
       setUser(session?.user ?? null)
+      if (session) cleanAuthCallbackUrl()
       if (session?.user) {
         fetchProfile(session.user.id)
       } else {
@@ -52,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
+      if (session) cleanAuthCallbackUrl()
       if (session?.user) {
         fetchProfile(session.user.id)
       } else {
