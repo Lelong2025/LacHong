@@ -47,7 +47,7 @@ function assigneeDisplayNames(value: string | null) {
 }
 
 export function DashboardPage() {
-  const { profile } = useAuth()
+  const { profile, user } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [error, setError] = useState('')
@@ -74,11 +74,12 @@ export function DashboardPage() {
   useEffect(() => {
     void load()
     const channel = supabase
-      .channel('dashboard-docs')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => load())
+      .channel(`dashboard-docs:${user?.id ?? 'anonymous'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => { void load() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'document_shares' }, () => { void load() })
       .subscribe()
     return () => { void supabase.removeChannel(channel) }
-  }, [load])
+  }, [load, user?.id])
 
   const availableYears = useMemo(() => {
     const years = new Set(documents.map(doc => doc.document_year || new Date(doc.created_at).getFullYear()))

@@ -59,7 +59,20 @@ export function ListFileDoc({ documentId, refreshKey = 0, pendingFiles = [], onR
         }
 
         void loadFiles()
-        return () => { cancelled = true }
+        const channel = supabase
+            .channel(`document-files:${documentId}:${fileKind ?? 'all'}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'document_files',
+                filter: `document_id=eq.${documentId}`,
+            }, () => { void loadFiles() })
+            .subscribe()
+
+        return () => {
+            cancelled = true
+            void supabase.removeChannel(channel)
+        }
     }, [documentId, refreshKey, fileKind])
 
     if (loading) {

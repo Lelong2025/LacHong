@@ -33,7 +33,6 @@ export function ArchivePage() {
       .is('deleted_at', null)
       .order('updated_at', { ascending: false })
 
-    if (!isAdmin) query = query.eq('created_by', user?.id ?? '')
     if (search) query = query.ilike('title', `%${search}%`)
 
     const { data, error } = await query
@@ -42,16 +41,17 @@ export function ArchivePage() {
       setError(error.message)
     }
     else setItems((data || []) as DocumentRow[])
-  }, [isAdmin, user?.id, search])
+  }, [search])
 
   useEffect(() => {
     void load()
     const channel = supabase
-      .channel('archive-docs')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => load())
+      .channel(`archive-docs:${user?.id ?? 'anonymous'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => { void load() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'document_shares' }, () => { void load() })
       .subscribe()
     return () => { void supabase.removeChannel(channel) }
-  }, [load])
+  }, [load, user?.id])
 
   return (
     <>

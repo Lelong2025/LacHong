@@ -26,6 +26,11 @@ export function UsersPage() {
 
   useEffect(() => {
     void load()
+    const channel = supabase
+      .channel('users:profiles')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => { void load() })
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
   }, [load])
 
   async function toggleActive(profile: Profile) {

@@ -222,14 +222,15 @@ export function DocumentsPage() {
   useEffect(() => {
     void load()
     const channel = supabase
-      .channel('documents')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => load())
+      .channel(`documents:${user?.id ?? 'anonymous'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => { void load() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'document_shares' }, () => { void load() })
       .subscribe()
 
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [load])
+  }, [load, user?.id])
 
   const isAdmin = profile?.role === 'admin'
 
@@ -291,6 +292,40 @@ export function DocumentsPage() {
       setLoadingFiles(false)
     }
   }
+
+  useEffect(() => {
+    if (!selectedDoc) return
+
+    const loadSelectedDocFiles = async () => {
+      setLoadingFiles(true)
+      try {
+        const { data, error } = await supabase
+          .from('document_files')
+          .select('id, name, object_path, file_kind')
+          .eq('document_id', selectedDoc.id)
+          .is('deleted_at', null)
+        if (error) throw error
+        setDocFiles((data || []) as { id: string; name: string; object_path: string | null; file_kind: string }[])
+      } catch (err) {
+        if (emitSessionExpired(err)) return
+        console.error('Lỗi khi tải file đính kèm:', err)
+      } finally {
+        setLoadingFiles(false)
+      }
+    }
+
+    const channel = supabase
+      .channel(`document-detail-files:${selectedDoc.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'document_files',
+        filter: `document_id=eq.${selectedDoc.id}`,
+      }, () => { void loadSelectedDocFiles() })
+      .subscribe()
+
+    return () => { void supabase.removeChannel(channel) }
+  }, [selectedDoc])
 
 
   useEffect(() => {

@@ -64,7 +64,8 @@ export function TrashPage() {
     void load()
     const channel = supabase
       .channel('trash-docs')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, () => { void load() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'document_shares' }, () => { void load() })
       .subscribe()
     return () => { void supabase.removeChannel(channel) }
   }, [load])
