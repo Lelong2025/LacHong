@@ -16,6 +16,15 @@ const port = Number(process.env.PORT ?? 3001)
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? '*'
 const publicSiteUrl = process.env.PUBLIC_SITE_URL ?? frontendOrigin
 const siteUrl = publicSiteUrl.endsWith('/') ? publicSiteUrl : `${publicSiteUrl}/`
+const inviteRedirectUrl = (() => {
+  try {
+    const url = new URL(siteUrl)
+    url.searchParams.set('next', 'settings')
+    return url.toString()
+  } catch {
+    return siteUrl
+  }
+})()
 const normalizeOrigin = (origin: string) => {
   try {
     return new URL(origin).origin
@@ -287,7 +296,7 @@ app.post('/api/invite-user', requireUser, async (req, res) => {
   }
 
   const { error } = await supabase.auth.admin.inviteUserByEmail(email, {
-    redirectTo: siteUrl,
+    redirectTo: inviteRedirectUrl,
   })
 
   if (error) {
@@ -1047,7 +1056,7 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
       // 2. Mời đăng ký qua Supabase Admin API
       try {
         await supabase.auth.admin.inviteUserByEmail(email, {
-          redirectTo: siteUrl,
+          redirectTo: inviteRedirectUrl,
         })
       } catch (err) {
         console.error('Error inviting user:', err)

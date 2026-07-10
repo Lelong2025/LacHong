@@ -25,10 +25,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 function cleanAuthCallbackUrl() {
   const hash = window.location.hash
-  if (!hash.includes('access_token=') && !hash.includes('refresh_token=') && !hash.includes('error=')) return
   const params = new URLSearchParams(window.location.search)
-  const next = params.get('next') === 'settings' ? '/settings' : '/'
-  window.history.replaceState(null, document.title, `${window.location.pathname}#${next}`)
+  const isAuthCallback = hash.includes('access_token=') || hash.includes('refresh_token=') || hash.includes('error=')
+  const shouldOpenSettings = params.get('next') === 'settings'
+  if (!isAuthCallback && !shouldOpenSettings) return
+
+  const next = shouldOpenSettings ? '/settings' : '/'
+  const nextHash = `#${next}`
+  const previousUrl = window.location.href
+  window.history.replaceState(null, document.title, `${window.location.pathname}${nextHash}`)
+  window.dispatchEvent(new HashChangeEvent('hashchange', {
+    oldURL: previousUrl,
+    newURL: window.location.href,
+  }))
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
