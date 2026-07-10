@@ -14,18 +14,12 @@ type AuthPageProps = {
   onTransitionComplete?: (session: Session) => void
 }
 
-function getAuthRedirectUrl(route = '/') {
+function getAuthCallbackUrl(next?: string) {
   const basePath = import.meta.env.BASE_URL || '/'
   const normalizedBase = basePath.startsWith('/') ? basePath : `/${basePath}`
   const redirectUrl = new URL(normalizedBase, window.location.origin)
-  redirectUrl.hash = route
+  if (next) redirectUrl.searchParams.set('next', next)
   return redirectUrl.toString()
-}
-
-function getAuthCallbackUrl() {
-  const basePath = import.meta.env.BASE_URL || '/'
-  const normalizedBase = basePath.startsWith('/') ? basePath : `/${basePath}`
-  return new URL(normalizedBase, window.location.origin).toString()
 }
 
 export default function AuthPage({ 
@@ -156,7 +150,7 @@ export default function AuthPage({
     setResetLoading(true)
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: getAuthRedirectUrl('/settings'),
+        redirectTo: getAuthCallbackUrl('settings'),
       })
       if (error) throw error
       setSuccess('Đã gửi email đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.')

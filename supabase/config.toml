@@ -11,8 +11,14 @@ major_version = 15
 
 [auth]
 enabled = true
-site_url = "http://localhost:5173/LacHong/"
-additional_redirect_urls = ["https://hieu-nguyen-lhu.github.io/LacHong/"]
+site_url = "https://lelong2025.github.io/LacHong/"
+additional_redirect_urls = [
+  "https://lelong2025.github.io/LacHong/",
+  "https://lelong2025.github.io/LacHong/?next=settings",
+  "https://lelong2025.github.io/LacHong/#/settings",
+  "http://localhost:5173/LacHong/",
+  "http://127.0.0.1:5173/LacHong/"
+]
 
 [storage]
 enabled = true
