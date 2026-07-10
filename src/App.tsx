@@ -1,6 +1,7 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { Layout } from './components/Layout'
+import { BookLoader } from './components/BookLoader'
 import { useAuth, type Profile } from './contexts/AuthContext'
 import { NotificationProvider } from './contexts/NotificationContext'
 import { useNotifier } from './contexts/useNotifier'
@@ -75,7 +76,11 @@ function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () =
   }, [notify, signOut])
 
   if (loading) {
-    return <div className="splash">Đang tải hệ thống...</div>
+    return (
+      <div className="splash splash-loader">
+        <BookLoader label="Đang tải hệ thống..." />
+      </div>
+    )
   }
 
   if (!delayedSession) {

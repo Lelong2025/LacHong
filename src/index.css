@@ -80,3 +80,20 @@ h1, h2, h3, p {
   color: var(--blue);
   font-weight: 700;
 }
+
+.splash-loader {
+  background: var(--page-bg);
+}
+
+.splash-loader .loader {
+  transform: scale(.9);
+}
+
+.splash-loader .loader span {
+  color: var(--blue);
+  white-space: nowrap;
+}
+
+:root[data-theme='dark'] .splash-loader .loader span {
+  color: var(--text);
+}

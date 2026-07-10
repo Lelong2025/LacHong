@@ -1869,6 +1869,92 @@ td small {
     grid-template-columns: 1fr;
     gap: 16px;
   }
+
+  .modal {
+    padding: .65rem;
+    place-items: start center;
+    overflow-y: auto;
+  }
+
+  .modal .modal-container-style,
+  .modal .document-form {
+    width: min(100%, calc(100vw - 1.3rem)) !important;
+    max-height: none;
+    border-radius: 14px;
+  }
+
+  .modal-form-header {
+    padding: 18px 20px;
+  }
+
+  .modal-form-header h2 {
+    font-size: clamp(1.45rem, 8vw, 2rem);
+    line-height: 1.08;
+    overflow-wrap: anywhere;
+  }
+
+  .modal-form-body {
+    padding: 20px;
+  }
+
+  .modal-form-footer {
+    padding: 16px 20px;
+    flex-direction: column-reverse;
+  }
+
+  .modal-form-footer button {
+    width: 100%;
+  }
+
+  .row-flex {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .assignee-field-custom,
+  .year-field-custom {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .modal-container-style input,
+  .modal-container-style select,
+  .modal-container-style textarea {
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .assignee-combobox {
+    min-width: 0;
+  }
+
+  .assignee-combobox input {
+    min-width: 0;
+  }
+
+  .selected-assignees-list {
+    min-width: 0;
+  }
+
+  .assignee-chip {
+    max-width: 100%;
+  }
+
+  .document-file-grid {
+    gap: 18px;
+  }
+
+  .modal-container-style .dropzone>div {
+    min-height: 160px;
+    padding: 1rem;
+  }
+
+  .modal-container-style .dropzone b {
+    max-width: 100%;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
 }
 
 /* Assignee chips styles */
@@ -2852,6 +2938,85 @@ td small {
 }
 
 @media (max-width: 760px) {
+  .modal {
+    padding: .65rem;
+    place-items: start center;
+    overflow-y: auto;
+  }
+
+  .modal .modal-container-style,
+  .modal .document-form {
+    width: min(100%, calc(100vw - 1.3rem)) !important;
+    max-height: none !important;
+    border-radius: 14px;
+  }
+
+  .modal-form-header {
+    padding: 18px 20px;
+  }
+
+  .modal-form-header h2 {
+    font-size: clamp(1.45rem, 8vw, 2rem);
+    line-height: 1.08;
+    overflow-wrap: anywhere;
+  }
+
+  .modal-form-body {
+    padding: 20px;
+  }
+
+  .modal-form-footer {
+    padding: 16px 20px;
+    flex-direction: column-reverse;
+  }
+
+  .modal-form-footer button {
+    width: 100%;
+  }
+
+  .form-top-row,
+  .row-flex,
+  .modal-container-style .document-file-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .row-flex {
+    display: grid;
+    gap: 14px;
+  }
+
+  .assignee-field-custom,
+  .year-field-custom,
+  .assignee-combobox,
+  .selected-assignees-list,
+  .document-file-grid,
+  .document-file-grid>div {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .assignee-chip {
+    max-width: 100%;
+  }
+
+  .modal-container-style input,
+  .modal-container-style select,
+  .modal-container-style textarea {
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .modal-container-style .dropzone>div {
+    min-height: 160px;
+    padding: 1rem;
+  }
+
+  .modal-container-style .dropzone b {
+    max-width: 100%;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
   .data-view-card table {
     display: none;
   }
