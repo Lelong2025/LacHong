@@ -89,6 +89,7 @@ function Protected({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () =
         theme={theme}
         onToggleTheme={onToggleTheme}
         onStartTransition={() => setIsTransitioning(true)}
+        onTransitionCancel={() => setIsTransitioning(false)}
         onTransitionComplete={(signedInSession) => {
           setIsTransitioning(false)
           setDelayedSession(signedInSession)

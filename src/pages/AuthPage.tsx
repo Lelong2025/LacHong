@@ -12,6 +12,7 @@ type AuthPageProps = {
   onToggleTheme: () => void
   onStartTransition?: () => void
   onTransitionComplete?: (session: Session) => void
+  onTransitionCancel?: () => void
 }
 
 function getAuthCallbackUrl(next?: string) {
@@ -26,7 +27,8 @@ export default function AuthPage({
   theme, 
   onToggleTheme, 
   onStartTransition, 
-  onTransitionComplete 
+  onTransitionComplete,
+  onTransitionCancel,
 }: AuthPageProps) {
   const [mode, setMode] = useState<AuthMode>('login')
   const [showPassword, setShowPassword] = useState(false)
@@ -94,6 +96,7 @@ export default function AuthPage({
       onTransitionComplete?.(loginData.session)
     } catch (err: unknown) {
       setTransitionStage('idle')
+      onTransitionCancel?.()
       const msg = err instanceof Error ? err.message : 'Đăng nhập thất bại.'
       if (msg === 'ACCOUNT_LOCKED') {
         setError('Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.')
@@ -165,7 +168,7 @@ export default function AuthPage({
   const isPendingTransition = transitionStage !== 'idle'
 
   return (
-    <div className={`auth-wrapper ${isLogin ? 'login' : 'register'} ${transitionStage === 'loading' ? 'stage-loading' : ''} ${transitionStage === 'expanding' ? 'stage-expand' : ''}`}>
+    <div className={`auth-wrapper ${isLogin ? 'login' : 'register'} ${isPendingTransition ? 'stage-loading' : ''} ${transitionStage === 'expanding' ? 'stage-expand' : ''}`}>
       <ThemeSwitch checked={theme === 'dark'} onChange={onToggleTheme} className="auth-theme-switch" />
       <div className="login-card">
         

@@ -83,7 +83,7 @@
   width: 340px;
   z-index: 10;
   text-align: center;
-  transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.35s ease, transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Login: Form trượt sang phải */
@@ -244,7 +244,7 @@
   justify-content: center;
   z-index: 10;
   pointer-events: none;
-  transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.35s ease, transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .brand-logo-container.login {
@@ -344,7 +344,7 @@
   position: fixed;
   top: 0; left: 0;
   width: 100vw; height: 100vh;
-  z-index: 999;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -445,18 +445,24 @@
   transition-delay: 0.5s;
 }
 
+.auth-wrapper.stage-expand .loading-overlay {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+.auth-wrapper.stage-expand .form-container,
+.auth-wrapper.stage-expand .brand-logo-container {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
 /* [STAGE 2]: Thành công -> Phóng to sách tràn viền, chuyển thành màu nền trang chủ */
 .auth-wrapper.stage-expand .loader div.book-body {
   transform: scale(60) !important;
   border-radius: 0px; 
   box-shadow: none;
-  background-image: none !important;
-  background-color: #ffffff !important; /* Màu trắng cho giao diện sáng */
-}
-
-/* Trong chế độ nền tối (Dark mode), khi phóng to sẽ chuyển thành màu tối #212121 */
-:root[data-theme='dark'] .auth-wrapper.stage-expand .loader div.book-body {
-  background-color: #212121 !important;
+  background-image: var(--background) !important;
 }
 
 /* Ẩn các trang sách lật và nhãn chữ ngay khi phóng to */
