@@ -933,13 +933,33 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
 
     if (assigneeId) {
       // 1. Lưu thông tin chia sẻ tài liệu
-      const { error: shareError } = await supabase.from('document_shares').insert({
-        document_id: documentId,
+      const { data: existingShare, error: existingShareError } = await supabase
+        .from('document_shares')
+        .select('id')
+        .eq('document_id', documentId)
+        .or(`client_id.eq.${assigneeId},shared_with.eq.${assigneeId}`)
+        .maybeSingle()
+
+      if (existingShareError) {
+        res.status(400).json({ error: `Không thể kiểm tra phân quyền cho ${email}: ${existingShareError.message}` })
+        return
+      }
+
+      const sharePayload = {
         client_id: assigneeId,
         shared_with: assigneeId,
         shared_by: currentUser.id,
-        assigned_by: currentUser.id
-      })
+        assigned_by: currentUser.id,
+        pending_email: null,
+        revoked_at: null,
+      }
+
+      const { error: shareError } = existingShare
+        ? await supabase.from('document_shares').update(sharePayload).eq('id', existingShare.id)
+        : await supabase.from('document_shares').insert({
+          document_id: documentId,
+          ...sharePayload,
+        })
 
       if (shareError) {
         res.status(400).json({ error: `Không thể gắn hồ sơ cho ${email}: ${shareError.message}` })
@@ -991,12 +1011,33 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
     } else {
       // User chưa đăng ký
       // 1. Lưu quyền chờ theo email để khi tài khoản được tạo sẽ tự thấy hồ sơ
-      const { error: pendingShareError } = await supabase.from('document_shares').insert({
-        document_id: documentId,
+      const { data: existingPendingShare, error: existingPendingShareError } = await supabase
+        .from('document_shares')
+        .select('id')
+        .eq('document_id', documentId)
+        .eq('pending_email', email)
+        .maybeSingle()
+
+      if (existingPendingShareError) {
+        res.status(400).json({ error: `Không thể kiểm tra phân quyền chờ cho ${email}: ${existingPendingShareError.message}` })
+        return
+      }
+
+      const pendingSharePayload = {
+        client_id: null,
+        shared_with: null,
         pending_email: email,
         assigned_by: currentUser.id,
-        shared_by: currentUser.id
-      })
+        shared_by: currentUser.id,
+        revoked_at: null,
+      }
+
+      const { error: pendingShareError } = existingPendingShare
+        ? await supabase.from('document_shares').update(pendingSharePayload).eq('id', existingPendingShare.id)
+        : await supabase.from('document_shares').insert({
+          document_id: documentId,
+          ...pendingSharePayload,
+        })
 
       if (pendingShareError) {
         res.status(400).json({ error: `Không thể gắn hồ sơ chờ cho ${email}: ${pendingShareError.message}` })
