@@ -8,12 +8,16 @@ import { emitSessionExpired } from '../lib/sessionExpiry'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { DocumentRow } from '../types'
 
-const typeLabels: Record<string, string> = {
+const documentTypeLabels: Record<string, string> = {
   totrinh: 'Tờ trình',
   quyetdinh: 'Quyết định',
   khenthuong: 'Khen thưởng',
   baocao: 'Báo cáo',
   kehoach: 'Kế hoạch',
+}
+
+const groupLabels: Record<string, string> = {
+  ...documentTypeLabels,
   banhanh: 'Ban hành',
 }
 
@@ -170,7 +174,7 @@ export function DashboardPage() {
 
   const totalArchived = scopedDocuments.length
   const recentDocs = scopedDocuments.slice(0, 10)
-  const typeStats = Object.entries(typeLabels).map(([key, label]) => ({
+  const typeStats = Object.entries(groupLabels).map(([key, label]) => ({
     key,
     label,
     icon: typeIcons[key] ?? FileText,
@@ -188,7 +192,7 @@ export function DashboardPage() {
   }, [scopedDocuments])
 
   const typeAssigneeStats = useMemo(() =>
-    Object.entries(typeLabels).slice(0, 5).map(([key, label]) => {
+    Object.entries(documentTypeLabels).map(([key, label]) => {
       const typeDocs = scopedDocuments.filter(doc => documentGroupKey(doc) === key)
       const years = Array.from(new Set(typeDocs.map(doc => doc.document_year || new Date(doc.created_at).getFullYear()))).sort((a, b) => a - b)
       const counts = typeDocs.reduce<Record<string, Record<number, number>>>((acc, doc) => {
@@ -277,7 +281,7 @@ export function DashboardPage() {
 
       <section className="chart-grid">
         <article className="chart-card">
-          <h2>Số liệu theo loại hồ sơ</h2>
+          <h2>Số liệu theo loại hồ sơ và tình trạng ban hành</h2>
           <div className="pie-chart" style={{ background: pieGradient }} />
           <div className="chart-legend">
             {typeStats.map((item, index) => (
@@ -319,7 +323,7 @@ export function DashboardPage() {
             {recentDocs.map((doc) => (
               <tr key={doc.id}>
                 <td><b>{doc.title}</b><small>{doc.description}</small></td>
-                <td>{typeLabels[doc.type] || doc.type}</td>
+                <td>{documentTypeLabels[doc.type] || doc.type}</td>
                 {isAdmin && <td>{assigneeDisplayName(doc.assignee_name) || <span style={{ color: 'var(--muted)' }}>—</span>}</td>}
                 <td>{new Date(doc.updated_at).toLocaleDateString('vi-VN')}</td>
               </tr>
@@ -333,7 +337,7 @@ export function DashboardPage() {
           {recentDocs.map((doc) => (
             <article className="data-card" key={doc.id}>
               <div className="data-card-title-row">
-                <span className="status">{typeLabels[doc.type] || doc.type}</span>
+                <span className="status">{documentTypeLabels[doc.type] || doc.type}</span>
                 <span>{new Date(doc.updated_at).toLocaleDateString('vi-VN')}</span>
               </div>
               <div className="data-card-main text-only">

@@ -8,12 +8,16 @@ import { emitSessionExpired } from '../lib/sessionExpiry'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { DocumentRow } from '../types'
 
-const typeList = [
+const documentTypeList = [
   { key: 'totrinh', label: 'Tờ trình', icon: Send },
   { key: 'quyetdinh', label: 'Quyết định', icon: Stamp },
   { key: 'khenthuong', label: 'Khen thưởng', icon: CheckCircle2 },
   { key: 'baocao', label: 'Báo cáo', icon: FileText },
   { key: 'kehoach', label: 'Kế hoạch', icon: Clock3 },
+]
+
+const filterList = [
+  ...documentTypeList,
   { key: 'banhanh', label: 'Ban hành', icon: Hash },
 ]
 
@@ -100,7 +104,7 @@ export function StatisticsPage() {
   )
 
   const typeStats = useMemo(() =>
-    typeList.map(({ key, label, icon }) => {
+    filterList.map(({ key, label, icon }) => {
       const docs = yearScopedDocuments.filter(d => documentGroupKey(d) === key)
       return {
         key, label, icon,
@@ -121,6 +125,7 @@ export function StatisticsPage() {
   }, [scopedDocuments])
 
   const chartTypeStats = useMemo(() => typeFilter ? typeStats.filter(item => item.key === typeFilter) : typeStats, [typeFilter, typeStats])
+  const activeFilterLabel = filterList.find(item => item.key === typeFilter)?.label
 
   const pieGradient = useMemo(() => {
     let start = 0
@@ -168,7 +173,7 @@ export function StatisticsPage() {
 
       {/* Cards theo loại hồ sơ */}
       <section className="metric-grid" style={{ marginBottom: '1.5rem' }}>
-        {typeList.map(({ key, label, icon: Icon }) => {
+        {filterList.map(({ key, label, icon: Icon }) => {
           const count = yearScopedDocuments.filter(d => documentGroupKey(d) === key).length
           const active = typeFilter === key
           return (
@@ -183,7 +188,7 @@ export function StatisticsPage() {
 
       <section className="chart-grid">
         <article className="chart-card">
-          <h2>{typeFilter ? `Dữ liệu ${typeList.find(item => item.key === typeFilter)?.label}` : 'Số liệu theo loại hồ sơ'}</h2>
+          <h2>{typeFilter ? `Dữ liệu ${activeFilterLabel}` : 'Số liệu theo loại hồ sơ và tình trạng ban hành'}</h2>
           <div className="pie-chart" style={{ background: pieGradient }} />
           <div className="chart-legend">
             {chartTypeStats.map((item, index) => (
@@ -197,16 +202,16 @@ export function StatisticsPage() {
         </article>
       </section>
 
-      {/* Bảng thống kê chi tiết theo loại */}
+      {/* Bảng thống kê chi tiết theo loại và tình trạng */}
       <section className={`table-card data-view-card ${forceGrid || viewMode === 'grid' ? 'is-grid-view' : 'is-table-view'}`} style={{ marginBottom: '1.25rem' }}>
         <div className="table-card-header">
-          <strong style={{ fontSize: '.9rem' }}>Chi tiết theo loại hồ sơ</strong>
+          <strong style={{ fontSize: '.9rem' }}>Chi tiết theo loại hồ sơ và tình trạng ban hành</strong>
           <DataViewToggle value={viewMode} onChange={setViewMode} forceGrid={forceGrid} />
         </div>
         <table>
           <thead>
             <tr>
-              <th>Loại hồ sơ</th>
+              <th>Loại/Tình trạng</th>
               <th style={{ textAlign: 'right' }}>Tổng</th>
               <th style={{ textAlign: 'right' }}>Lưu trữ</th>
             </tr>

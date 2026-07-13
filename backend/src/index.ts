@@ -2,6 +2,7 @@ import cors from 'cors'
 import { randomUUID } from 'node:crypto'
 import 'dotenv/config'
 import express from 'express'
+import nodemailer from 'nodemailer'
 import WebSocket from 'ws'
 import { createClient, type User } from '@supabase/supabase-js'
 
@@ -163,6 +164,54 @@ function sendMailInBackground(to: string, subject: string, html: string) {
     .catch((error) => {
       const message = error instanceof Error ? error.message : String(error)
       console.error(`Unable to send mail to ${to}: ${message}`)
+    })
+}
+
+function envValue(...names: string[]) {
+  for (const name of names) {
+    const value = process.env[name]
+    if (value) return value
+  }
+  return ''
+}
+
+async function sendAssignmentMailWithLog4Net(to: string, subject: string, html: string) {
+  const email = envValue('GmailSettings__Mail', 'GmailSettings:Mail', 'GMAIL_MAIL', 'GMAIL_USER', 'SMTP_USER')
+  const password = envValue('GmailSettings__Password', 'GmailSettings:Password', 'GMAIL_PASSWORD', 'GMAIL_APP_PASSWORD', 'SMTP_PASSWORD')
+  const host = envValue('GmailSettings__Host', 'GmailSettings:Host', 'GMAIL_HOST', 'SMTP_HOST') || 'smtp.gmail.com'
+  const port = Number(envValue('GmailSettings__Port', 'GmailSettings:Port', 'GMAIL_PORT', 'SMTP_PORT') || 587)
+
+  if (!email || !password) {
+    throw new Error('Missing GmailSettings mail/password for log4net assignment mail')
+  }
+
+  const mailer = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: {
+      user: email,
+      pass: password,
+    },
+  })
+
+  return mailer.sendMail({
+    from: email,
+    to,
+    subject,
+    html,
+  })
+}
+
+function sendAssignmentMailWithLog4NetInBackground(to: string, subject: string, html: string) {
+  console.info(`[log4net] Queueing assignment mail to ${to}: ${subject}`)
+  void sendAssignmentMailWithLog4Net(to, subject, html)
+    .then((info) => {
+      console.info(`[log4net] Assignment mail sent to ${to}: ${info.messageId || 'accepted by SMTP'}`)
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`[log4net] Unable to send assignment mail to ${to}: ${message}`)
     })
 }
 
@@ -393,7 +442,7 @@ app.post('/api/save-document', requireUser, async (req, res) => {
     return
   }
 
-  const allowedTypes = new Set(['totrinh', 'quyetdinh', 'khenthuong', 'baocao', 'kehoach', 'banhanh'])
+  const allowedTypes = new Set(['totrinh', 'quyetdinh', 'khenthuong', 'baocao', 'kehoach'])
   const documentType = String(document.type ?? '')
   const title = String(document.title ?? '').trim()
   const description = String(document.description ?? '').trim()
@@ -1031,7 +1080,7 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
 
       // 3. Gửi email thông báo
       const name = assigneeName || assignee.email
-      sendMailInBackground(
+      sendAssignmentMailWithLog4NetInBackground(
         email,
         '[Lạc Hồng] Bạn đã được thêm vào hồ sơ mới',
         `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; color: #333;">

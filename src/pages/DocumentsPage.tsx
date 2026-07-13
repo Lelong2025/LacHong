@@ -10,12 +10,16 @@ import { emitSessionExpired } from '../lib/sessionExpiry'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { AssigneeOption, DocumentRow } from '../types'
 
-const labels: Record<string, string> = {
+const documentTypeLabels: Record<string, string> = {
   totrinh: 'Tờ trình',
   quyetdinh: 'Quyết định',
   khenthuong: 'Khen thưởng',
   baocao: 'Báo cáo',
   kehoach: 'Kế hoạch',
+}
+
+const labels: Record<string, string> = {
+  ...documentTypeLabels,
   banhanh: 'Ban hành',
 }
 
@@ -612,6 +616,11 @@ export function DocumentsPage() {
     { key: 'kehoach', label: 'Kế hoạch', icon: Clock3 },
     { key: 'banhanh', label: 'Ban hành', icon: Hash },
   ]
+  const typeSelectDefault = editingDoc?.type && documentTypeLabels[editingDoc.type]
+    ? editingDoc.type
+    : typeFilter && documentTypeLabels[typeFilter]
+      ? typeFilter
+      : 'totrinh'
 
   return (
     <>
@@ -715,7 +724,7 @@ export function DocumentsPage() {
                       />
                     )}
                   </td>
-                  <td className="type-column">{labels[document.type] || document.type}</td>
+                  <td className="type-column">{documentTypeLabels[document.type] || document.type}</td>
                   <td className="content-column">
                     <span
                       style={{ cursor: 'pointer' }}
@@ -758,7 +767,7 @@ export function DocumentsPage() {
             return (
               <article className="data-card" key={document.id}>
                 <div className="data-card-title-row">
-                  <span className="status">{labels[document.type] || document.type}</span>
+                  <span className="status">{documentTypeLabels[document.type] || document.type}</span>
                   {canDelete && (
                     <input
                       type="checkbox"
@@ -824,8 +833,8 @@ export function DocumentsPage() {
                 <div className="form-right-col">
                   <label className="form-group" style={{ marginBottom: '12px' }}>
                     Loại hồ sơ
-                    <select name="type" defaultValue={editingDoc?.type || typeFilter || 'totrinh'} required>
-                      {Object.entries(labels).map(([value, label]) => (
+                    <select name="type" defaultValue={typeSelectDefault} required>
+                      {Object.entries(documentTypeLabels).map(([value, label]) => (
                         <option key={value} value={value}>{label}</option>
                       ))}
                     </select>
@@ -921,7 +930,7 @@ export function DocumentsPage() {
                 </div>
                 <div>
                   <small style={{ color: 'var(--muted)', display: 'block' }}>Loại hồ sơ</small>
-                  <strong>{labels[selectedDoc.type] || selectedDoc.type}</strong>
+                  <strong>{documentTypeLabels[selectedDoc.type] || selectedDoc.type}</strong>
                 </div>
                 <div>
                   <small style={{ color: 'var(--muted)', display: 'block' }}>Năm tài liệu</small>
