@@ -1,10 +1,13 @@
 import cors from 'cors'
 import { randomUUID } from 'node:crypto'
-import 'dotenv/config'
+import dotenv from 'dotenv'
 import express from 'express'
 import nodemailer from 'nodemailer'
 import WebSocket from 'ws'
 import { createClient, type User } from '@supabase/supabase-js'
+
+dotenv.config()
+dotenv.config({ path: '../.env' })
 
 const required = (name: string) => {
   const value = process.env[name]
@@ -175,11 +178,24 @@ function envValue(...names: string[]) {
   return ''
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 async function sendAssignmentMailWithLog4Net(to: string, subject: string, html: string) {
   const email = envValue('GmailSettings__Mail', 'GmailSettings:Mail', 'GMAIL_MAIL', 'GMAIL_USER', 'SMTP_USER')
-  const password = envValue('GmailSettings__Password', 'GmailSettings:Password', 'GMAIL_PASSWORD', 'GMAIL_APP_PASSWORD', 'SMTP_PASSWORD')
+  const password = envValue('GmailSettings__Password', 'GmailSettings:Password', 'GMAIL_PASSWORD', 'GMAIL_APP_PASSWORD', 'SMTP_PASSWORD', 'SMTP_PASS')
   const host = envValue('GmailSettings__Host', 'GmailSettings:Host', 'GMAIL_HOST', 'SMTP_HOST') || 'smtp.gmail.com'
   const port = Number(envValue('GmailSettings__Port', 'GmailSettings:Port', 'GMAIL_PORT', 'SMTP_PORT') || 587)
+  const fromAddress = envValue('GmailSettings__From', 'GmailSettings:From', 'MAIL_FROM', 'SMTP_FROM') || email
+  const fromName = envValue('GmailSettings__FromName', 'GmailSettings:FromName', 'SMTP_FROM_NAME')
+  const from = fromName ? `"${fromName.replace(/"/g, '\\"')}" <${fromAddress}>` : fromAddress
+  const secureValue = envValue('GmailSettings__Secure', 'GmailSettings:Secure', 'GMAIL_SECURE', 'SMTP_SECURE').toLowerCase()
 
   if (!email || !password) {
     throw new Error('Missing GmailSettings mail/password for log4net assignment mail')
@@ -188,7 +204,7 @@ async function sendAssignmentMailWithLog4Net(to: string, subject: string, html: 
   const mailer = nodemailer.createTransport({
     host,
     port,
-    secure: port === 465,
+    secure: secureValue ? ['1', 'true', 'yes'].includes(secureValue) : port === 465,
     auth: {
       user: email,
       pass: password,
@@ -196,7 +212,7 @@ async function sendAssignmentMailWithLog4Net(to: string, subject: string, html: 
   })
 
   return mailer.sendMail({
-    from: email,
+    from,
     to,
     subject,
     html,
@@ -213,6 +229,52 @@ function sendAssignmentMailWithLog4NetInBackground(to: string, subject: string, 
       const message = error instanceof Error ? error.message : String(error)
       console.error(`[log4net] Unable to send assignment mail to ${to}: ${message}`)
     })
+}
+
+const documentTypeLabels: Record<string, string> = {
+  totrinh: 'Tờ trình',
+  quyetdinh: 'Quyết định',
+  khenthuong: 'Khen thưởng',
+  baocao: 'Báo cáo',
+  kehoach: 'Kế hoạch',
+}
+
+function buildAssignmentMailHtml(params: { assigneeName: string; documentTitle: string; documentType: string }) {
+  const assigneeName = escapeHtml(params.assigneeName)
+  const documentTitle = escapeHtml(params.documentTitle)
+  const documentType = escapeHtml(documentTypeLabels[params.documentType] || params.documentType)
+  const detailsUrl = escapeHtml(siteUrl)
+
+  return `<div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; background-color: #f4f7fb; color: #152033;">
+    <div style="background-color: #ffffff; border-radius: 10px; overflow: hidden; border: 1px solid #dbe4f0;">
+      <div style="background-color: #1f5fa8; padding: 22px 28px; color: #ffffff;">
+        <div style="font-size: 13px; letter-spacing: .04em; text-transform: uppercase; opacity: .9;">Trung Tâm Nghiên Cứu Khoa Học &amp; Ứng Dụng</div>
+        <h1 style="font-size: 22px; line-height: 1.35; margin: 8px 0 0;">Bạn đã được thêm vào hồ sơ mới</h1>
+      </div>
+      <div style="padding: 28px;">
+        <p style="font-size: 16px; line-height: 1.65; margin: 0 0 14px;">Xin chào <strong>${assigneeName}</strong>,</p>
+        <p style="font-size: 15px; line-height: 1.65; margin: 0 0 20px; color: #46556a;">
+          Bạn vừa được thêm vào danh sách người thực hiện của hồ sơ dưới đây.
+        </p>
+        <div style="background-color: #eef5ff; border-left: 4px solid #1f5fa8; border-radius: 6px; padding: 16px 18px; margin: 0 0 22px;">
+          <div style="font-size: 12px; text-transform: uppercase; color: #1f5fa8; font-weight: 700; margin-bottom: 6px;">Hồ sơ</div>
+          <div style="font-size: 17px; line-height: 1.5; font-weight: 700; color: #111827;">${documentTitle}</div>
+          <div style="font-size: 13px; color: #607089; margin-top: 8px;">Loại hồ sơ: ${documentType}</div>
+        </div>
+        <p style="font-size: 15px; line-height: 1.65; margin: 0 0 26px; color: #46556a;">
+          Vui lòng truy cập hệ thống để xem chi tiết hồ sơ và các tài liệu liên quan.
+        </p>
+        <div style="text-align: center;">
+          <a href="${detailsUrl}" style="background-color: #1f5fa8; color: #ffffff; display: inline-block; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 15px;">
+            Xem hồ sơ
+          </a>
+        </div>
+      </div>
+    </div>
+    <p style="text-align: center; color: #7a8797; font-size: 12px; line-height: 1.5; margin: 18px 0 0;">
+      Đây là email tự động từ hệ thống. Vui lòng không phản hồi email này.
+    </p>
+  </div>`
 }
 
 async function ensureDocumentsBucket() {
@@ -1083,31 +1145,11 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
       sendAssignmentMailWithLog4NetInBackground(
         email,
         '[Lạc Hồng] Bạn đã được thêm vào hồ sơ mới',
-        `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; color: #333;">
-          <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-top: 4px solid #0056b3;">
-            <h2 style="color: #0056b3; margin-top: 0; font-size: 22px; font-weight: 600;">HỆ THỐNG LẠC HỒNG</h2>
-            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-            <p style="font-size: 16px; line-height: 1.6;">Xin chào <strong>${name}</strong>,</p>
-            <p style="font-size: 15px; line-height: 1.6; color: #555;">
-              Bạn vừa được thêm vào thành viên của hồ sơ:
-            </p>
-            <div style="background-color: #f0f7ff; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0; border-radius: 4px;">
-              <span style="font-size: 13px; text-transform: uppercase; color: #007bff; font-weight: bold; display: block; margin-bottom: 5px;">Tên hồ sơ</span>
-              <strong style="font-size: 16px; color: #111;">${document.title}</strong>
-            </div>
-            <p style="font-size: 15px; line-height: 1.6; color: #555; margin-bottom: 25px;">
-              Vui lòng nhấn vào nút bên dưới để truy cập hệ thống và xem chi tiết hồ sơ.
-            </p>
-            <div style="text-align: center; margin: 30px 0 15px 0;">
-              <a href="${siteUrl}" style="background-color: #0056b3; color: #ffffff; padding: 12px 30px; text-decoration: none; font-size: 15px; font-weight: bold; border-radius: 5px; display: inline-block;">
-                Xem chi tiết hồ sơ
-              </a>
-            </div>
-          </div>
-          <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #888;">
-            <p>Đây là email tự động từ hệ thống Lạc Hồng. Vui lòng không phản hồi email này.</p>
-          </div>
-        </div>`
+        buildAssignmentMailHtml({
+          assigneeName: name,
+          documentTitle: document.title,
+          documentType: document.type,
+        })
       )
     } else {
       // User chưa đăng ký
