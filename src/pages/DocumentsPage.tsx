@@ -56,6 +56,7 @@ const statusLabels: Partial<Record<DocumentRow['status'], string>> = {
 }
 
 const documentStatusLabel = (document: DocumentRow) => statusLabels[document.status] || 'Chưa ban hành'
+const documentGroupKey = (document: DocumentRow) => document.status === 'issued' ? 'banhanh' : document.type
 
 const readFileBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader()
@@ -260,7 +261,7 @@ export function DocumentsPage() {
 
   const filteredItems = useMemo(() => {
     return allDocs.filter(doc => {
-      const matchesType = !typeFilter || doc.type === typeFilter
+      const matchesType = !typeFilter || documentGroupKey(doc) === typeFilter
       const docYear = doc.document_year || new Date(doc.created_at).getFullYear()
       const matchesYear = !yearFilter || docYear === Number(yearFilter)
       const matchesSearch = !search ||
@@ -300,7 +301,8 @@ export function DocumentsPage() {
 
   const typeCounts = useMemo(() => {
     return allDocs.reduce<Record<string, number>>((acc, doc) => {
-      acc[doc.type] = (acc[doc.type] ?? 0) + 1
+      const key = documentGroupKey(doc)
+      acc[key] = (acc[key] ?? 0) + 1
       return acc
     }, {})
   }, [allDocs])

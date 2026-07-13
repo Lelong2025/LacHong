@@ -18,6 +18,7 @@ const typeList = [
 ]
 
 const chartColors = ['#1E5FA8', '#4E9DB3', '#8DC7B2', '#F2C66D', '#D9865B', '#5F7F4D']
+const documentGroupKey = (document: DocumentRow) => document.status === 'issued' ? 'banhanh' : document.type
 
 function assigneeDisplayNames(value: string | null) {
   if (!value) return ['Chưa gán']
@@ -94,13 +95,13 @@ export function StatisticsPage() {
   }), [documents, yearFilter])
 
   const scopedDocuments = useMemo(() =>
-    yearScopedDocuments.filter(doc => !typeFilter || doc.type === typeFilter),
+    yearScopedDocuments.filter(doc => !typeFilter || documentGroupKey(doc) === typeFilter),
     [typeFilter, yearScopedDocuments]
   )
 
   const typeStats = useMemo(() =>
     typeList.map(({ key, label, icon }) => {
-      const docs = yearScopedDocuments.filter(d => d.type === key)
+      const docs = yearScopedDocuments.filter(d => documentGroupKey(d) === key)
       return {
         key, label, icon,
         total: docs.length,
@@ -168,7 +169,7 @@ export function StatisticsPage() {
       {/* Cards theo loại hồ sơ */}
       <section className="metric-grid" style={{ marginBottom: '1.5rem' }}>
         {typeList.map(({ key, label, icon: Icon }) => {
-          const count = yearScopedDocuments.filter(d => d.type === key).length
+          const count = yearScopedDocuments.filter(d => documentGroupKey(d) === key).length
           const active = typeFilter === key
           return (
             <article className={`metric-card clickable ${active ? 'active' : ''}`} key={key} onClick={() => setTypeFilter(active ? '' : key)} style={count === 0 && !active ? { opacity: 0.5, cursor: 'pointer' } : { cursor: 'pointer' }}>

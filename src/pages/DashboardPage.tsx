@@ -27,6 +27,7 @@ const typeIcons: Record<string, typeof FileText> = {
 }
 
 const chartColors = ['#1E5FA8', '#4E9DB3', '#8DC7B2', '#F2C66D', '#D9865B', '#5F7F4D']
+const documentGroupKey = (document: DocumentRow) => document.status === 'issued' ? 'banhanh' : document.type
 
 function assigneeDisplayName(value: string | null) {
   if (!value) return 'Chưa gán'
@@ -160,7 +161,8 @@ export function DashboardPage() {
 
   const typeCounts = useMemo(() =>
     scopedDocuments.reduce<Record<string, number>>((acc, doc) => {
-      acc[doc.type] = (acc[doc.type] ?? 0) + 1
+      const key = documentGroupKey(doc)
+      acc[key] = (acc[key] ?? 0) + 1
       return acc
     }, {}),
     [scopedDocuments]
@@ -187,7 +189,7 @@ export function DashboardPage() {
 
   const typeAssigneeStats = useMemo(() =>
     Object.entries(typeLabels).slice(0, 5).map(([key, label]) => {
-      const typeDocs = scopedDocuments.filter(doc => doc.type === key)
+      const typeDocs = scopedDocuments.filter(doc => documentGroupKey(doc) === key)
       const years = Array.from(new Set(typeDocs.map(doc => doc.document_year || new Date(doc.created_at).getFullYear()))).sort((a, b) => a - b)
       const counts = typeDocs.reduce<Record<string, Record<number, number>>>((acc, doc) => {
         const year = doc.document_year || new Date(doc.created_at).getFullYear()
