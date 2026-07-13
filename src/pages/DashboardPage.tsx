@@ -26,7 +26,7 @@ const typeIcons: Record<string, typeof FileText> = {
   banhanh: Hash,
 }
 
-const chartColors = ['#164877', '#087b38', '#9a6200', '#7c3aed', '#0f766e', '#b42318']
+const chartColors = ['#1E5FA8', '#4E9DB3', '#8DC7B2', '#F2C66D', '#D9865B', '#5F7F4D']
 
 function assigneeDisplayName(value: string | null) {
   if (!value) return 'Chưa gán'
@@ -44,6 +44,69 @@ function assigneeDisplayNames(value: string | null) {
     .map(item => item.trim().replace(/\s*\([^)]*@[^)]*\)/g, ''))
     .filter(Boolean)
   return names.length ? names : ['Chưa gán']
+}
+
+function VerticalBarChart({ items, emptyMessage }: { items: { name: string; total: number }[]; emptyMessage: string }) {
+  const max = Math.max(...items.map(item => item.total), 1)
+  return (
+    <div className="vertical-bar-chart">
+      {items.map((item, index) => (
+        <div className="vertical-bar-item" key={item.name}>
+          <div className="vertical-bar-track">
+            <i style={{ height: `${Math.max((item.total / max) * 100, 7)}%`, background: chartColors[index % chartColors.length] }} />
+          </div>
+          <b>{item.total}</b>
+          <span title={item.name}>{item.name}</span>
+        </div>
+      ))}
+      {!items.length && <EmptyState message={emptyMessage} />}
+    </div>
+  )
+}
+
+function StackedYearBarChart({
+  items,
+  years,
+  max,
+  emptyMessage,
+}: {
+  items: { name: string; total: number; segments: { year: number; total: number; color: string }[] }[]
+  years: { year: number; color: string }[]
+  max: number
+  emptyMessage: string
+}) {
+  return (
+    <>
+      <div className="year-stacked-bar-chart">
+        {items.map(item => (
+          <div className="year-stacked-item" key={item.name}>
+            <div className="year-stacked-track">
+              {item.segments.map(segment => (
+                <i
+                  key={segment.year}
+                  title={`${segment.year}: ${segment.total}`}
+                  style={{
+                    height: `${segment.total ? Math.max((segment.total / max) * 100, 8) : 0}%`,
+                    background: segment.color,
+                  }}
+                />
+              ))}
+            </div>
+            <b>{item.total}</b>
+            <span title={item.name}>{item.name}</span>
+          </div>
+        ))}
+        {!items.length && <EmptyState message={emptyMessage} />}
+      </div>
+      {years.length > 1 && (
+        <div className="year-stacked-legend">
+          {years.map(item => (
+            <span key={item.year}><i style={{ background: item.color }} />{item.year}</span>
+          ))}
+        </div>
+      )}
+    </>
+  )
 }
 
 export function DashboardPage() {
@@ -87,6 +150,9 @@ export function DashboardPage() {
     return Array.from(years).sort((a, b) => b - a)
   }, [documents])
 
+  const chartYears = useMemo(() => [...availableYears].sort((a, b) => a - b), [availableYears])
+  const yearColor = useCallback((year: number) => chartColors[Math.max(chartYears.indexOf(year), 0) % chartColors.length], [chartYears])
+
   const scopedDocuments = useMemo(() => documents.filter(doc => {
     if (!yearFilter) return true
     return (doc.document_year || new Date(doc.created_at).getFullYear()) === Number(yearFilter)
@@ -119,6 +185,41 @@ export function DashboardPage() {
     return Object.entries(counts).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 8)
   }, [scopedDocuments])
 
+  const typeAssigneeStats = useMemo(() =>
+    Object.entries(typeLabels).slice(0, 5).map(([key, label]) => {
+      const typeDocs = scopedDocuments.filter(doc => doc.type === key)
+      const years = Array.from(new Set(typeDocs.map(doc => doc.document_year || new Date(doc.created_at).getFullYear()))).sort((a, b) => a - b)
+      const counts = typeDocs.reduce<Record<string, Record<number, number>>>((acc, doc) => {
+        const year = doc.document_year || new Date(doc.created_at).getFullYear()
+        for (const name of assigneeDisplayNames(doc.assignee_name)) {
+          acc[name] ??= {}
+          acc[name][year] = (acc[name][year] ?? 0) + 1
+        }
+        return acc
+      }, {})
+      const items = Object.entries(counts).map(([name, yearCounts]) => {
+        const segments = years.map(year => ({
+          year,
+          total: yearCounts[year] ?? 0,
+          color: yearColor(year),
+        }))
+        return {
+          name,
+          segments,
+          total: segments.reduce((sum, segment) => sum + segment.total, 0),
+        }
+      }).sort((a, b) => b.total - a.total).slice(0, 6)
+      return {
+        key,
+        label,
+        years: years.map(year => ({ year, color: yearColor(year) })),
+        items,
+        max: Math.max(...items.map(item => item.total), 1),
+      }
+    }),
+    [scopedDocuments, yearColor]
+  )
+
   const pieGradient = useMemo(() => {
     let start = 0
     const total = Math.max(scopedDocuments.length, 1)
@@ -130,8 +231,6 @@ export function DashboardPage() {
     })
     return `conic-gradient(${segments.join(', ')})`
   }, [scopedDocuments.length, typeStats])
-
-  const maxAssigneeTotal = Math.max(...assigneeStats.map(item => item.total), 1)
 
   return (
     <>
@@ -186,17 +285,17 @@ export function DashboardPage() {
         </article>
         <article className="chart-card">
           <h2>Số liệu theo người thực hiện</h2>
-          <div className="bar-chart">
-            {assigneeStats.map(item => (
-              <div className="bar-row" key={item.name}>
-                <span>{item.name}</span>
-                <div><i style={{ width: `${Math.max((item.total / maxAssigneeTotal) * 100, 4)}%` }} /></div>
-                <b>{item.total}</b>
-              </div>
-            ))}
-            {!assigneeStats.length && <EmptyState message="Chưa có dữ liệu người thực hiện." />}
-          </div>
+          <VerticalBarChart items={assigneeStats} emptyMessage="Chưa có dữ liệu người thực hiện." />
         </article>
+      </section>
+
+      <section className="chart-grid type-assignee-grid">
+        {typeAssigneeStats.map(item => (
+          <article className="chart-card" key={item.key}>
+            <h2>{item.label.toLocaleLowerCase('vi-VN')}</h2>
+            <StackedYearBarChart items={item.items} years={item.years} max={item.max} emptyMessage="Chưa có dữ liệu." />
+          </article>
+        ))}
       </section>
 
       {/* === HỒ SƠ GẦN ĐÂY === */}

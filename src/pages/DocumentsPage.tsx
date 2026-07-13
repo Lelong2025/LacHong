@@ -32,7 +32,30 @@ const parseAssigneeNames = (value: string | null): AssigneeOption[] => {
   })
 }
 
+function AssigneeCell({ value }: { value: string | null }) {
+  const assignees = parseAssigneeNames(value)
+  if (!assignees.length) return <span className="muted-cell">Chưa gán</span>
+
+  return (
+    <div className="assignee-cell-list">
+      {assignees.map((assignee) => (
+        <span className="assignee-cell-item" key={assignee.email} title={assigneeLabel(assignee)}>
+          <b>{assignee.full_name || assignee.email}</b>
+          {assignee.full_name && <small>{assignee.email}</small>}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 const documentContent = (document: DocumentRow) => document.description || document.title
+const statusLabels: Partial<Record<DocumentRow['status'], string>> = {
+  issued: 'Đã ban hành',
+  pending_issue: 'Chưa ban hành',
+  archived: 'Chưa ban hành',
+}
+
+const documentStatusLabel = (document: DocumentRow) => statusLabels[document.status] || 'Chưa ban hành'
 
 const readFileBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader()
@@ -64,17 +87,17 @@ function base64ToBlob(contentBase64: string, mimeType: string) {
   return new Blob([bytes], { type: mimeType || 'application/octet-stream' })
 }
 
-function FileDropzone({ label, files, onChange }: { label: string; files: File[]; onChange: (files: File[]) => void }) {
+function FileDropzone({ label, files, onChange, accept, validateFile }: { label: string; files: File[]; onChange: (files: File[]) => void; accept: string; validateFile: (file: File) => boolean }) {
   const [dragging, setDragging] = useState(false)
   const addFiles = (list: FileList | null) => {
     if (!list?.length) return
-    onChange([...files, ...Array.from(list)])
+    onChange([...files, ...Array.from(list).filter(validateFile)])
   }
 
   return (
     <label className={dragging ? 'dropzone dragging' : 'dropzone'} onDragOver={(event) => { event.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); addFiles(event.dataTransfer.files) }}>
       <span>{label}</span>
-      <input type="file" multiple onChange={(event) => addFiles(event.target.files)} />
+      <input type="file" multiple accept={accept} onChange={(event) => addFiles(event.target.files)} />
       <div>
         <UploadCloud />
         <b>Kéo và thả tệp vào đây hoặc <span className="browse-link">[Browse files]</span></b>
@@ -91,6 +114,7 @@ export function DocumentsPage() {
   const [allDocs, setAllDocs] = useState<DocumentRow[]>([])
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [yearFilter, setYearFilter] = useState('')
   const [show, setShow] = useState(false)
   const [editingDoc, setEditingDoc] = useState<DocumentRow | null>(null)
   const [error, setError] = useState('')
@@ -237,6 +261,8 @@ export function DocumentsPage() {
   const filteredItems = useMemo(() => {
     return allDocs.filter(doc => {
       const matchesType = !typeFilter || doc.type === typeFilter
+      const docYear = doc.document_year || new Date(doc.created_at).getFullYear()
+      const matchesYear = !yearFilter || docYear === Number(yearFilter)
       const matchesSearch = !search ||
         doc.title.toLowerCase().includes(search.toLowerCase()) ||
         (doc.description && doc.description.toLowerCase().includes(search.toLowerCase()))
@@ -244,9 +270,15 @@ export function DocumentsPage() {
       // Kiểm tra quyền xem: admin, người tạo, hoặc người có trong danh sách người thực hiện
       const canView = isAdmin || doc.created_by === user?.id || isUserAssignee(doc)
 
-      return matchesType && matchesSearch && canView
+      return matchesType && matchesYear && matchesSearch && canView
     })
-  }, [allDocs, typeFilter, search, isAdmin, user?.id, isUserAssignee])
+  }, [allDocs, typeFilter, yearFilter, search, isAdmin, user?.id, isUserAssignee])
+
+  const availableYears = useMemo(() => {
+    const years = new Set(allDocs.map(doc => doc.document_year || new Date(doc.created_at).getFullYear()))
+    years.add(new Date().getFullYear())
+    return Array.from(years).sort((a, b) => b - a)
+  }, [allDocs])
 
   const deletableFilteredItems = useMemo(() => {
     return filteredItems.filter((document) => isAdmin || document.created_by === user?.id)
@@ -272,6 +304,35 @@ export function DocumentsPage() {
       return acc
     }, {})
   }, [allDocs])
+
+  function exportExcelCsv() {
+    const rows = [
+      ['Loại', 'Nội dung', 'Năm'],
+      ...filteredItems.map(document => [
+        labels[document.type] || document.type,
+        documentContent(document),
+        String(document.document_year || new Date(document.created_at).getFullYear()),
+      ]),
+    ]
+    const escapeCell = (value: string) => `"${value.replace(/"/g, '""')}"`
+    const csv = `\uFEFF${rows.map(row => row.map(escapeCell).join(',')).join('\r\n')}`
+    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `ho-so-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
+
+  const isWordFile = (file: File) => /\.(doc|docx)$/i.test(file.name)
+  const isPdfFile = (file: File) => /\.pdf$/i.test(file.name) || file.type === 'application/pdf'
+
+  async function hasExistingIssuedFile(documentId: string) {
+    const { count, error } = await supabase
+      .from('document_files')
+      .select('id', { count: 'exact', head: true })
+      .eq('document_id', documentId)
+      .eq('file_kind', 'issued_attachment')
+      .is('deleted_at', null)
+
+    if (error) throw error
+    return Boolean(count && count > 0)
+  }
 
   async function handleViewDetail(doc: DocumentRow) {
     setSelectedDoc(doc)
@@ -397,6 +458,8 @@ export function DocumentsPage() {
     const primaryAssigneeId = firstRegistered ? firstRegistered.id : null
 
     try {
+      const requestedDocumentId = editingDoc?.id || crypto.randomUUID()
+      const hasIssuedFile = issuedAttachments.length > 0 || (editingDoc ? await hasExistingIssuedFile(requestedDocumentId) : false)
       const documentPayload = {
         type: documentType,
         title: content.slice(0, 250),
@@ -404,10 +467,9 @@ export function DocumentsPage() {
         assignee_name: assigneeNames || null,
         assignee_id: primaryAssigneeId,
         document_year: yearValue,
-        status: 'archived',
+        status: hasIssuedFile ? 'issued' : 'pending_issue',
       }
 
-      const requestedDocumentId = editingDoc?.id || crypto.randomUUID()
       const { documentId } = await callBackend<{ ok: boolean; documentId: string }>('/api/save-document', {
         documentId: requestedDocumentId,
         editing: Boolean(editingDoc),
@@ -556,7 +618,10 @@ export function DocumentsPage() {
           <h1>Quản lý hồ sơ</h1>
           <p>Tra cứu, tạo mới và theo dõi trạng thái hồ sơ.</p>
         </div>
-        <button className="primary" onClick={openCreateForm}><FilePlus2 />Tạo hồ sơ</button>
+        <div className="page-heading-actions">
+          <button type="button" className="export-excel-button" onClick={exportExcelCsv}><Download />Xuất Excel</button>
+          <button className="primary" onClick={openCreateForm}><FilePlus2 />Tạo hồ sơ</button>
+        </div>
       </div>
 
       {/* Card Filter Loại Hồ Sơ */}
@@ -604,6 +669,10 @@ export function DocumentsPage() {
           </button>
         )}
         <DataViewToggle value={viewMode} onChange={setViewMode} forceGrid={forceGrid} />
+        <select value={yearFilter} onChange={(event) => setYearFilter(event.target.value)} aria-label="Lọc theo năm">
+          <option value="">Tất cả năm</option>
+          {availableYears.map(year => <option key={year} value={year}>{year}</option>)}
+        </select>
         <span>{filteredItems.length} hồ sơ</span>
       </section>
       {error && <p className="error">{error}</p>}
@@ -622,7 +691,9 @@ export function DocumentsPage() {
               </th>
               <th className="type-column">Loại</th>
               <th className="content-column">Nội dung</th>
+              <th className="assignee-column">Người thực hiện</th>
               <th className="year-column">Năm</th>
+              <th className="status-column">Tình trạng</th>
               <th className="action-column">Thao tác</th>
             </tr>
           </thead>
@@ -652,7 +723,9 @@ export function DocumentsPage() {
                       {documentContent(document)}
                     </span>
                   </td>
+                  <td className="assignee-column"><AssigneeCell value={document.assignee_name} /></td>
                   <td className="year-column">{document.document_year || new Date(document.created_at).getFullYear()}</td>
+                  <td className="status-column"><span className={`status ${document.status}`}>{documentStatusLabel(document)}</span></td>
                   <td className="action-column">
                     <div className="row-actions record-row-actions document-row-actions">
                       <button className="ghost compact" title="Xem chi tiết" onClick={() => handleViewDetail(document)}>
@@ -673,7 +746,7 @@ export function DocumentsPage() {
                 </tr>
               )
             })}
-            {!filteredItems.length && <tr><td colSpan={5}><EmptyState message="Chưa có hồ sơ nào." /></td></tr>}
+            {!filteredItems.length && <tr><td colSpan={7}><EmptyState message="Chưa có hồ sơ nào." /></td></tr>}
           </tbody>
         </table>
         <div className="data-grid document-data-grid">
@@ -697,8 +770,16 @@ export function DocumentsPage() {
                   {documentContent(document)}
                 </button>
                 <div className="data-card-meta">
+                  <span>Người thực hiện</span>
+                  <b>{document.assignee_name || 'Chưa gán'}</b>
+                </div>
+                <div className="data-card-meta">
                   <span>Năm</span>
                   <b>{document.document_year || new Date(document.created_at).getFullYear()}</b>
+                </div>
+                <div className="data-card-meta">
+                  <span>Tình trạng</span>
+                  <b>{documentStatusLabel(document)}</b>
                 </div>
                 <div className="row-actions record-row-actions document-row-actions data-card-actions">
                   <button className="ghost compact" title="Xem chi tiết" onClick={() => handleViewDetail(document)}>
@@ -799,11 +880,11 @@ export function DocumentsPage() {
               </div>
               <div className="document-file-grid" style={{ marginTop: '24px' }}>
                 <div>
-                  <FileDropzone label="Đính kèm (mọi định dạng)" files={attachments} onChange={setAttachments} />
+                  <FileDropzone label="Văn bản Word" files={attachments} onChange={setAttachments} accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" validateFile={isWordFile} />
                   {editingDoc && <ListFileDoc documentId={editingDoc.id} refreshKey={fileRefreshKey} pendingFiles={attachments.map(file => ({ name: file.name, kind: 'attachment' }))} fileKind="attachment" onRemoveExistingFile={removeExistingFile} downloadFile={downloadDocumentFile} />}
                 </div>
                 <div>
-                  <FileDropzone label="Tệp lưu trữ chính thức (mọi định dạng)" files={issuedAttachments} onChange={setIssuedAttachments} />
+                  <FileDropzone label="Ban hành PDF" files={issuedAttachments} onChange={setIssuedAttachments} accept=".pdf,application/pdf" validateFile={isPdfFile} />
                   {editingDoc && <ListFileDoc documentId={editingDoc.id} refreshKey={fileRefreshKey} pendingFiles={issuedAttachments.map(file => ({ name: file.name, kind: 'issued_attachment' }))} fileKind="issued_attachment" onRemoveExistingFile={removeExistingFile} downloadFile={downloadDocumentFile} />}
                 </div>
               </div>
@@ -845,8 +926,8 @@ export function DocumentsPage() {
                   <strong>{selectedDoc.document_year || new Date(selectedDoc.created_at).getFullYear()}</strong>
                 </div>
                 <div>
-                  <small style={{ color: 'var(--muted)', display: 'block' }}>Lưu trữ</small>
-                  <strong>Đã lưu trữ</strong>
+                  <small style={{ color: 'var(--muted)', display: 'block' }}>Tình trạng</small>
+                  <strong>{documentStatusLabel(selectedDoc)}</strong>
                 </div>
               </div>
 

@@ -17,7 +17,7 @@ const typeList = [
   { key: 'banhanh', label: 'Ban hành', icon: Hash },
 ]
 
-const chartColors = ['#164877', '#087b38', '#9a6200', '#7c3aed', '#0f766e', '#b42318']
+const chartColors = ['#1E5FA8', '#4E9DB3', '#8DC7B2', '#F2C66D', '#D9865B', '#5F7F4D']
 
 function assigneeDisplayNames(value: string | null) {
   if (!value) return ['Chưa gán']
@@ -28,12 +28,31 @@ function assigneeDisplayNames(value: string | null) {
   return names.length ? names : ['Chưa gán']
 }
 
+function VerticalBarChart({ items, emptyMessage }: { items: { name: string; total: number }[]; emptyMessage: string }) {
+  const max = Math.max(...items.map(item => item.total), 1)
+  return (
+    <div className="vertical-bar-chart">
+      {items.map((item, index) => (
+        <div className="vertical-bar-item" key={item.name}>
+          <div className="vertical-bar-track">
+            <i style={{ height: `${Math.max((item.total / max) * 100, 7)}%`, background: chartColors[index % chartColors.length] }} />
+          </div>
+          <b>{item.total}</b>
+          <span title={item.name}>{item.name}</span>
+        </div>
+      ))}
+      {!items.length && <EmptyState message={emptyMessage} />}
+    </div>
+  )
+}
+
 export function StatisticsPage() {
   const { profile, user } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [error, setError] = useState('')
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()))
+  const [typeFilter, setTypeFilter] = useState('')
   const [viewMode, setViewMode] = useState<DataViewMode>('table')
   const forceGrid = useMediaQuery('(max-width: 760px)')
 
@@ -69,20 +88,25 @@ export function StatisticsPage() {
     return Array.from(years).sort((a, b) => b - a)
   }, [documents])
 
-  const scopedDocuments = useMemo(() => documents.filter(doc => {
+  const yearScopedDocuments = useMemo(() => documents.filter(doc => {
     if (!yearFilter) return true
     return (doc.document_year || new Date(doc.created_at).getFullYear()) === Number(yearFilter)
   }), [documents, yearFilter])
 
+  const scopedDocuments = useMemo(() =>
+    yearScopedDocuments.filter(doc => !typeFilter || doc.type === typeFilter),
+    [typeFilter, yearScopedDocuments]
+  )
+
   const typeStats = useMemo(() =>
     typeList.map(({ key, label, icon }) => {
-      const docs = scopedDocuments.filter(d => d.type === key)
+      const docs = yearScopedDocuments.filter(d => d.type === key)
       return {
         key, label, icon,
         total: docs.length,
       }
     }),
-    [scopedDocuments]
+    [yearScopedDocuments]
   )
 
   const assigneeStats = useMemo(() => {
@@ -95,18 +119,18 @@ export function StatisticsPage() {
     return Object.entries(counts).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10)
   }, [scopedDocuments])
 
+  const chartTypeStats = useMemo(() => typeFilter ? typeStats.filter(item => item.key === typeFilter) : typeStats, [typeFilter, typeStats])
+
   const pieGradient = useMemo(() => {
     let start = 0
     const total = Math.max(scopedDocuments.length, 1)
-    return `conic-gradient(${typeStats.map((item, index) => {
+    return `conic-gradient(${chartTypeStats.map((item, index) => {
       const end = start + (item.total / total) * 100
       const segment = `${chartColors[index % chartColors.length]} ${start}% ${end}%`
       start = end
       return segment
     }).join(', ')})`
-  }, [scopedDocuments.length, typeStats])
-  const maxAssigneeTotal = Math.max(...assigneeStats.map(item => item.total), 1)
-
+  }, [chartTypeStats, scopedDocuments.length])
   if (!documents.length) {
     return (
       <>
@@ -144,9 +168,10 @@ export function StatisticsPage() {
       {/* Cards theo loại hồ sơ */}
       <section className="metric-grid" style={{ marginBottom: '1.5rem' }}>
         {typeList.map(({ key, label, icon: Icon }) => {
-          const count = scopedDocuments.filter(d => d.type === key).length
+          const count = yearScopedDocuments.filter(d => d.type === key).length
+          const active = typeFilter === key
           return (
-            <article className="metric-card" key={key} style={count === 0 ? { opacity: 0.5 } : {}}>
+            <article className={`metric-card clickable ${active ? 'active' : ''}`} key={key} onClick={() => setTypeFilter(active ? '' : key)} style={count === 0 && !active ? { opacity: 0.5, cursor: 'pointer' } : { cursor: 'pointer' }}>
               <Icon />
               <span>{label}</span>
               <b>{count}</b>
@@ -157,26 +182,17 @@ export function StatisticsPage() {
 
       <section className="chart-grid">
         <article className="chart-card">
-          <h2>Số liệu theo loại hồ sơ</h2>
+          <h2>{typeFilter ? `Dữ liệu ${typeList.find(item => item.key === typeFilter)?.label}` : 'Số liệu theo loại hồ sơ'}</h2>
           <div className="pie-chart" style={{ background: pieGradient }} />
           <div className="chart-legend">
-            {typeStats.map((item, index) => (
+            {chartTypeStats.map((item, index) => (
               <span key={item.key}><i style={{ background: chartColors[index % chartColors.length] }} />{item.label}: {item.total}</span>
             ))}
           </div>
         </article>
         <article className="chart-card">
           <h2>Số liệu theo người thực hiện</h2>
-          <div className="bar-chart">
-            {assigneeStats.map(item => (
-              <div className="bar-row" key={item.name}>
-                <span>{item.name}</span>
-                <div><i style={{ width: `${Math.max((item.total / maxAssigneeTotal) * 100, 4)}%` }} /></div>
-                <b>{item.total}</b>
-              </div>
-            ))}
-            {!assigneeStats.length && <EmptyState message="Chưa có dữ liệu người thực hiện." />}
-          </div>
+          <VerticalBarChart items={assigneeStats} emptyMessage="Chưa có dữ liệu người thực hiện." />
         </article>
       </section>
 

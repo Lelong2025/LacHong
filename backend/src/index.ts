@@ -400,6 +400,7 @@ app.post('/api/save-document', requireUser, async (req, res) => {
   const documentYear = Number(document.document_year ?? new Date().getFullYear())
   const assigneeName = document.assignee_name ? String(document.assignee_name) : null
   const assigneeId = document.assignee_id ? String(document.assignee_id) : null
+  const requestedStatus = String(document.status ?? 'pending_issue')
 
   if (!allowedTypes.has(documentType)) {
     res.status(400).json({ error: 'Loại hồ sơ không hợp lệ.' })
@@ -416,6 +417,13 @@ app.post('/api/save-document', requireUser, async (req, res) => {
     return
   }
 
+  if (!['pending_issue', 'issued'].includes(requestedStatus)) {
+    res.status(400).json({ error: 'Tình trạng hồ sơ không hợp lệ.' })
+    return
+  }
+
+  let nextStatus = requestedStatus
+
   const payload = {
     type: documentType,
     title,
@@ -423,7 +431,7 @@ app.post('/api/save-document', requireUser, async (req, res) => {
     assignee_name: assigneeName,
     assignee_id: assigneeId,
     document_year: documentYear,
-    status: 'archived',
+    status: nextStatus,
   }
 
   if (editing) {
@@ -441,6 +449,18 @@ app.post('/api/save-document', requireUser, async (req, res) => {
     if (existing.created_by !== currentUser.id) {
       res.status(403).json({ error: 'Chỉ người tạo hồ sơ mới được sửa hồ sơ này.' })
       return
+    }
+
+    if (nextStatus === 'pending_issue') {
+      const { data: existingIssuedFiles } = await supabase
+        .from('document_files')
+        .select('id')
+        .eq('document_id', documentId)
+        .eq('file_kind', 'issued_attachment')
+        .is('deleted_at', null)
+        .limit(1)
+      if ((existingIssuedFiles || []).length > 0) nextStatus = 'issued'
+      payload.status = nextStatus
     }
 
     const { error } = await supabase
@@ -565,6 +585,13 @@ app.post('/api/upload-document-file', requireUser, async (req, res) => {
     return
   }
 
+  if (fileKind === 'issued_attachment') {
+    await supabase
+      .from('documents')
+      .update({ status: 'issued', updated_at: new Date().toISOString() })
+      .eq('id', documentId)
+  }
+
   res.json({ ok: true, fileId: fileInsert.data.id, objectPath })
 })
 
@@ -584,7 +611,7 @@ app.post('/api/delete-document-file', requireUser, async (req, res) => {
 
   const { data: file, error: fileError } = await supabase
     .from('document_files')
-    .select('id,document_id,object_path,created_by,deleted_at')
+    .select('id,document_id,object_path,created_by,deleted_at,file_kind')
     .eq('id', fileId)
     .single()
 
@@ -632,6 +659,22 @@ app.post('/api/delete-document-file', requireUser, async (req, res) => {
   if (updateError) {
     res.status(400).json({ error: updateError.message })
     return
+  }
+
+  if (file.file_kind === 'issued_attachment') {
+    const { data: remainingIssuedFiles } = await supabase
+      .from('document_files')
+      .select('id')
+      .eq('document_id', file.document_id)
+      .eq('file_kind', 'issued_attachment')
+      .is('deleted_at', null)
+      .limit(1)
+    if (!(remainingIssuedFiles || []).length) {
+      await supabase
+        .from('documents')
+        .update({ status: 'pending_issue', updated_at: new Date().toISOString() })
+        .eq('id', file.document_id)
+    }
   }
 
   res.json({ ok: true })
