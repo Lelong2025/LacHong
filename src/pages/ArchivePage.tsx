@@ -8,12 +8,12 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { DocumentRow } from '../types'
 
 const typeLabels: Record<string, string> = {
-  totrinh: 'Tờ trình',
-  quyetdinh: 'Quyết định',
-  khenthuong: 'Khen thưởng',
-  baocao: 'Báo cáo',
-  kehoach: 'Kế hoạch',
-  banhanh: 'Ban hành',
+  totrinh: 'Tờ Trình',
+  quyetdinh: 'Quyết Định',
+  khenthuong: 'Khen Thưởng',
+  baocao: 'Báo Cáo',
+  kehoach: 'Kế Hoạch',
+  banhanh: 'Ban Hành',
 }
 
 export function ArchivePage() {

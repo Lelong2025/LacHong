@@ -9,16 +9,16 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { DocumentRow } from '../types'
 
 const documentTypeLabels: Record<string, string> = {
-  totrinh: 'Tờ trình',
-  quyetdinh: 'Quyết định',
-  khenthuong: 'Khen thưởng',
-  baocao: 'Báo cáo',
-  kehoach: 'Kế hoạch',
+  totrinh: 'Tờ Trình',
+  quyetdinh: 'Quyết Định',
+  khenthuong: 'Khen Thưởng',
+  baocao: 'Báo Cáo',
+  kehoach: 'Kế Hoạch',
 }
 
 const groupLabels: Record<string, string> = {
   ...documentTypeLabels,
-  banhanh: 'Ban hành',
+  banhanh: 'Ban Hành',
 }
 
 const typeIcons: Record<string, typeof FileText> = {
@@ -31,7 +31,9 @@ const typeIcons: Record<string, typeof FileText> = {
 }
 
 const chartColors = ['#1E5FA8', '#4E9DB3', '#8DC7B2', '#F2C66D', '#D9865B', '#5F7F4D']
-const documentGroupKey = (document: DocumentRow) => document.status === 'issued' ? 'banhanh' : document.type
+const matchesGroup = (document: DocumentRow, group: string) => group === 'banhanh'
+  ? document.status === 'issued'
+  : document.type === group
 
 function assigneeDisplayName(value: string | null) {
   if (!value) return 'Chưa gán'
@@ -165,7 +167,7 @@ export function DashboardPage() {
 
   const typeCounts = useMemo(() =>
     scopedDocuments.reduce<Record<string, number>>((acc, doc) => {
-      const key = documentGroupKey(doc)
+      const key = doc.type
       acc[key] = (acc[key] ?? 0) + 1
       return acc
     }, {}),
@@ -174,12 +176,19 @@ export function DashboardPage() {
 
   const totalArchived = scopedDocuments.length
   const recentDocs = scopedDocuments.slice(0, 10)
-  const typeStats = Object.entries(groupLabels).map(([key, label]) => ({
+  const typeStats = Object.entries(documentTypeLabels).map(([key, label]) => ({
     key,
     label,
     icon: typeIcons[key] ?? FileText,
     total: typeCounts[key] ?? 0,
   }))
+  const issuedStat = {
+    key: 'banhanh',
+    label: groupLabels.banhanh,
+    icon: typeIcons.banhanh,
+    total: scopedDocuments.filter(doc => matchesGroup(doc, 'banhanh')).length,
+  }
+  const metricStats = [...typeStats, issuedStat]
 
   const assigneeStats = useMemo(() => {
     const counts = scopedDocuments.reduce<Record<string, number>>((acc, doc) => {
@@ -193,7 +202,7 @@ export function DashboardPage() {
 
   const typeAssigneeStats = useMemo(() =>
     Object.entries(documentTypeLabels).map(([key, label]) => {
-      const typeDocs = scopedDocuments.filter(doc => documentGroupKey(doc) === key)
+      const typeDocs = scopedDocuments.filter(doc => doc.type === key)
       const years = Array.from(new Set(typeDocs.map(doc => doc.document_year || new Date(doc.created_at).getFullYear()))).sort((a, b) => a - b)
       const counts = typeDocs.reduce<Record<string, Record<number, number>>>((acc, doc) => {
         const year = doc.document_year || new Date(doc.created_at).getFullYear()
@@ -270,7 +279,7 @@ export function DashboardPage() {
           <span>Tổng lưu trữ</span>
           <b>{totalArchived}</b>
         </article>
-        {typeStats.map(({ key, label, icon: Icon, total }) => (
+        {metricStats.map(({ key, label, icon: Icon, total }) => (
           <article className="metric-card dashboard-metric-card" key={key} style={total === 0 ? { opacity: 0.5 } : {}}>
             <Icon />
             <span>{label}</span>
@@ -281,7 +290,7 @@ export function DashboardPage() {
 
       <section className="chart-grid">
         <article className="chart-card">
-          <h2>Số liệu theo loại hồ sơ và tình trạng ban hành</h2>
+          <h2>Số liệu theo loại hồ sơ</h2>
           <div className="pie-chart" style={{ background: pieGradient }} />
           <div className="chart-legend">
             {typeStats.map((item, index) => (

@@ -9,20 +9,24 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { DocumentRow } from '../types'
 
 const documentTypeList = [
-  { key: 'totrinh', label: 'Tờ trình', icon: Send },
-  { key: 'quyetdinh', label: 'Quyết định', icon: Stamp },
-  { key: 'khenthuong', label: 'Khen thưởng', icon: CheckCircle2 },
-  { key: 'baocao', label: 'Báo cáo', icon: FileText },
-  { key: 'kehoach', label: 'Kế hoạch', icon: Clock3 },
+  { key: 'totrinh', label: 'Tờ Trình', icon: Send },
+  { key: 'quyetdinh', label: 'Quyết Định', icon: Stamp },
+  { key: 'khenthuong', label: 'Khen Thưởng', icon: CheckCircle2 },
+  { key: 'baocao', label: 'Báo Cáo', icon: FileText },
+  { key: 'kehoach', label: 'Kế Hoạch', icon: Clock3 },
 ]
 
 const filterList = [
   ...documentTypeList,
-  { key: 'banhanh', label: 'Ban hành', icon: Hash },
+  { key: 'banhanh', label: 'Ban Hành', icon: Hash },
 ]
 
 const chartColors = ['#1E5FA8', '#4E9DB3', '#8DC7B2', '#F2C66D', '#D9865B', '#5F7F4D']
-const documentGroupKey = (document: DocumentRow) => document.status === 'issued' ? 'banhanh' : document.type
+const matchesFilter = (document: DocumentRow, filter: string) => {
+  if (!filter) return true
+  if (filter === 'banhanh') return document.status === 'issued'
+  return document.type === filter
+}
 
 function assigneeDisplayNames(value: string | null) {
   if (!value) return ['Chưa gán']
@@ -33,21 +37,48 @@ function assigneeDisplayNames(value: string | null) {
   return names.length ? names : ['Chưa gán']
 }
 
-function VerticalBarChart({ items, emptyMessage }: { items: { name: string; total: number }[]; emptyMessage: string }) {
-  const max = Math.max(...items.map(item => item.total), 1)
+function StackedYearBarChart({
+  items,
+  years,
+  max,
+  emptyMessage,
+}: {
+  items: { name: string; total: number; segments: { year: number; total: number; color: string }[] }[]
+  years: { year: number; color: string }[]
+  max: number
+  emptyMessage: string
+}) {
   return (
-    <div className="vertical-bar-chart">
-      {items.map((item, index) => (
-        <div className="vertical-bar-item" key={item.name}>
-          <div className="vertical-bar-track">
-            <i style={{ height: `${Math.max((item.total / max) * 100, 7)}%`, background: chartColors[index % chartColors.length] }} />
+    <>
+      <div className="year-stacked-bar-chart">
+        {items.map(item => (
+          <div className="year-stacked-item" key={item.name}>
+            <div className="year-stacked-track">
+              {item.segments.map(segment => (
+                <i
+                  key={segment.year}
+                  title={`${segment.year}: ${segment.total}`}
+                  style={{
+                    height: `${segment.total ? Math.max((segment.total / max) * 100, 8) : 0}%`,
+                    background: segment.color,
+                  }}
+                />
+              ))}
+            </div>
+            <b>{item.total}</b>
+            <span title={item.name}>{item.name}</span>
           </div>
-          <b>{item.total}</b>
-          <span title={item.name}>{item.name}</span>
+        ))}
+        {!items.length && <EmptyState message={emptyMessage} />}
+      </div>
+      {years.length > 1 && (
+        <div className="year-stacked-legend">
+          {years.map(item => (
+            <span key={item.year}><i style={{ background: item.color }} />{item.year}</span>
+          ))}
         </div>
-      ))}
-      {!items.length && <EmptyState message={emptyMessage} />}
-    </div>
+      )}
+    </>
   )
 }
 
@@ -92,6 +123,8 @@ export function StatisticsPage() {
     years.add(new Date().getFullYear())
     return Array.from(years).sort((a, b) => b - a)
   }, [documents])
+  const chartYears = useMemo(() => [...availableYears].sort((a, b) => a - b), [availableYears])
+  const yearColor = useCallback((year: number) => chartColors[Math.max(chartYears.indexOf(year), 0) % chartColors.length], [chartYears])
 
   const yearScopedDocuments = useMemo(() => documents.filter(doc => {
     if (!yearFilter) return true
@@ -99,13 +132,13 @@ export function StatisticsPage() {
   }), [documents, yearFilter])
 
   const scopedDocuments = useMemo(() =>
-    yearScopedDocuments.filter(doc => !typeFilter || documentGroupKey(doc) === typeFilter),
+    yearScopedDocuments.filter(doc => matchesFilter(doc, typeFilter)),
     [typeFilter, yearScopedDocuments]
   )
 
   const typeStats = useMemo(() =>
     filterList.map(({ key, label, icon }) => {
-      const docs = yearScopedDocuments.filter(d => documentGroupKey(d) === key)
+      const docs = yearScopedDocuments.filter(d => matchesFilter(d, key))
       return {
         key, label, icon,
         total: docs.length,
@@ -114,17 +147,40 @@ export function StatisticsPage() {
     [yearScopedDocuments]
   )
 
-  const assigneeStats = useMemo(() => {
-    const counts = scopedDocuments.reduce<Record<string, number>>((acc, doc) => {
+  const assigneeYearStats = useMemo(() => {
+    const years = Array.from(new Set(scopedDocuments.map(doc => doc.document_year || new Date(doc.created_at).getFullYear()))).sort((a, b) => a - b)
+    const counts = scopedDocuments.reduce<Record<string, Record<number, number>>>((acc, doc) => {
+      const year = doc.document_year || new Date(doc.created_at).getFullYear()
       for (const key of assigneeDisplayNames(doc.assignee_name)) {
-        acc[key] = (acc[key] ?? 0) + 1
+        acc[key] ??= {}
+        acc[key][year] = (acc[key][year] ?? 0) + 1
       }
       return acc
     }, {})
-    return Object.entries(counts).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 10)
-  }, [scopedDocuments])
+    const items = Object.entries(counts).map(([name, yearCounts]) => {
+      const segments = years.map(year => ({
+        year,
+        total: yearCounts[year] ?? 0,
+        color: yearColor(year),
+      }))
+      return {
+        name,
+        segments,
+        total: segments.reduce((sum, segment) => sum + segment.total, 0),
+      }
+    }).sort((a, b) => b.total - a.total).slice(0, 10)
 
-  const chartTypeStats = useMemo(() => typeFilter ? typeStats.filter(item => item.key === typeFilter) : typeStats, [typeFilter, typeStats])
+    return {
+      items,
+      years: years.map(year => ({ year, color: yearColor(year) })),
+      max: Math.max(...items.map(item => item.total), 1),
+    }
+  }, [scopedDocuments, yearColor])
+
+  const chartTypeStats = useMemo(
+    () => typeFilter ? typeStats.filter(item => item.key === typeFilter) : typeStats.filter(item => item.key !== 'banhanh'),
+    [typeFilter, typeStats]
+  )
   const activeFilterLabel = filterList.find(item => item.key === typeFilter)?.label
 
   const pieGradient = useMemo(() => {
@@ -174,7 +230,7 @@ export function StatisticsPage() {
       {/* Cards theo loại hồ sơ */}
       <section className="metric-grid" style={{ marginBottom: '1.5rem' }}>
         {filterList.map(({ key, label, icon: Icon }) => {
-          const count = yearScopedDocuments.filter(d => documentGroupKey(d) === key).length
+          const count = yearScopedDocuments.filter(d => matchesFilter(d, key)).length
           const active = typeFilter === key
           return (
             <article className={`metric-card clickable ${active ? 'active' : ''}`} key={key} onClick={() => setTypeFilter(active ? '' : key)} style={count === 0 && !active ? { opacity: 0.5, cursor: 'pointer' } : { cursor: 'pointer' }}>
@@ -188,7 +244,7 @@ export function StatisticsPage() {
 
       <section className="chart-grid">
         <article className="chart-card">
-          <h2>{typeFilter ? `Dữ liệu ${activeFilterLabel}` : 'Số liệu theo loại hồ sơ và tình trạng ban hành'}</h2>
+          <h2>{typeFilter ? `Dữ liệu ${activeFilterLabel}` : 'Số liệu theo loại hồ sơ'}</h2>
           <div className="pie-chart" style={{ background: pieGradient }} />
           <div className="chart-legend">
             {chartTypeStats.map((item, index) => (
@@ -198,14 +254,19 @@ export function StatisticsPage() {
         </article>
         <article className="chart-card">
           <h2>Số liệu theo người thực hiện</h2>
-          <VerticalBarChart items={assigneeStats} emptyMessage="Chưa có dữ liệu người thực hiện." />
+          <StackedYearBarChart
+            items={assigneeYearStats.items}
+            years={assigneeYearStats.years}
+            max={assigneeYearStats.max}
+            emptyMessage="Chưa có dữ liệu người thực hiện."
+          />
         </article>
       </section>
 
       {/* Bảng thống kê chi tiết theo loại và tình trạng */}
       <section className={`table-card data-view-card ${forceGrid || viewMode === 'grid' ? 'is-grid-view' : 'is-table-view'}`} style={{ marginBottom: '1.25rem' }}>
         <div className="table-card-header">
-          <strong style={{ fontSize: '.9rem' }}>Chi tiết theo loại hồ sơ và tình trạng ban hành</strong>
+          <strong style={{ fontSize: '.9rem' }}>Chi tiết theo loại hồ sơ và tình trạng Ban Hành</strong>
           <DataViewToggle value={viewMode} onChange={setViewMode} forceGrid={forceGrid} />
         </div>
         <table>

@@ -134,7 +134,7 @@ begin
   elsif new.status='rejected' then
     perform public.notify_document_watchers(new.id,'document_rejected','Hồ sơ bị từ chối',new.title);
   elsif new.status='pending_issue' then
-    perform public.notify_document_watchers(new.id,'document_pending_issue','Hồ sơ chờ ban hành',new.title);
+    perform public.notify_document_watchers(new.id,'document_pending_issue','Hồ sơ chờ Ban Hành',new.title);
   elsif new.status='issued' then
     perform public.notify_document_watchers(new.id,'document_issued','Hồ sơ đã được cấp số',coalesce(new.code,new.title));
   elsif new.status='archived' then

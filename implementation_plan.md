@@ -1,7 +1,7 @@
-# Kế hoạch hệ thống Lạc Hồng (Phiên bản Tối ưu 100% Miễn Phí)
+# Kế Hoạch hệ thống Lạc Hồng (Phiên bản Tối ưu 100% Miễn Phí)
 
 > [!NOTE]
-> Bản kế hoạch này đã được cấu trúc lại để loại bỏ hoàn toàn các dịch vụ yêu cầu trả phí (như Render paid always-on). Hệ thống sẽ chuyển sang mô hình **BaaS (Backend-as-a-Service)**, sử dụng tối đa hệ sinh thái miễn phí của Supabase.
+> Bản Kế Hoạch này đã được cấu trúc lại để loại bỏ hoàn toàn các dịch vụ yêu cầu trả phí (như Render paid always-on). Hệ thống sẽ chuyển sang mô hình **BaaS (Backend-as-a-Service)**, sử dụng tối đa hệ sinh thái miễn phí của Supabase.
 
 ## 1. Kiến trúc (Mới)
 *   **Frontend:** React + Vite + TypeScript, giao tiếp trực tiếp với Supabase qua `supabase-js`. Deploy miễn phí trên **GitHub Repo Pages**.
@@ -12,20 +12,20 @@
 
 ## 2. Xác thực và phân quyền
 *   **Chỉ có hai vai trò:** 
-    *   `admin`: toàn quyền người dùng, hồ sơ, duyệt, ban hành, lưu trữ, thống kê và cấu hình.
+    *   `admin`: toàn quyền người dùng, hồ sơ, duyệt, Ban Hành, lưu trữ, thống kê và cấu hình.
     *   `client`: tạo và quản lý hồ sơ của chính mình; xem hồ sơ được admin chia sẻ.
 *   **Đăng ký & Gán quyền:** Cho phép đăng ký công khai. Mọi tài khoản mới luôn được gán role `client` thông qua **PostgreSQL Database Trigger** ngay khi user được tạo trong Auth, không nhận role từ request.
 *   Client phải xác minh email qua SMTP đã cấu hình trong Supabase Auth trước khi đăng nhập (Supabase xử lý tự động).
 *   **Admin Bootstrap:** Admin có email `phuonglong@lhu.edu.vn`.
     *   Sử dụng Supabase Seed Data hoặc một SQL script chạy thủ công (chạy 1 lần) để cấp quyền admin cho email này. 
     *   Mật khẩu không hardcode, người dùng tự tạo mật khẩu mạnh ngay từ đầu hoặc qua luồng Forgot Password.
-*   **Xác thực:** RLS của Supabase kiểm tra trực tiếp JWT token và bảng `profiles` để quyết định quyền truy cập (thay vì NestJS).
+*   **Xác thực:** RLS của Supabase kiểm tra trực tiếp JWT token và bảng `profiles` để Quyết Định quyền truy cập (thay vì NestJS).
 
 ## 3. Nghiệp vụ (Giữ nguyên luồng, thay đổi cách gọi)
 *   Hiện thực toàn bộ giao diện trong `Design/`.
 *   **Luồng hồ sơ:** `draft` → `submitted` → `approved/rejected` → `pending_issue` → `issued` → `archived`.
-*   **Client:** Tạo, sửa, xóa nháp. Gửi duyệt. Theo dõi trạng thái. Không sửa khi đang duyệt/đã ban hành.
-*   **Admin:** Duyệt, cấp số, ban hành, khóa/mở tài khoản client.
+*   **Client:** Tạo, sửa, xóa nháp. Gửi duyệt. Theo dõi trạng thái. Không sửa khi đang duyệt/đã Ban Hành.
+*   **Admin:** Duyệt, cấp số, Ban Hành, khóa/mở tài khoản client.
 *   **Lưu trữ (Storage):** File PDF, DOCX, v.v. (giới hạn < 5MB để tiết kiệm 1GB Supabase Storage quota). Truy cập bằng signed URL sinh từ client.
 *   **Cấp số chống trùng:** Dùng **PostgreSQL Stored Procedure (RPC)** với giao dịch (transaction) để đảm bảo tính nguyên vẹn và cấp số duy nhất.
 

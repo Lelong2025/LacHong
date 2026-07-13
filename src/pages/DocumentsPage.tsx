@@ -11,16 +11,16 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import type { AssigneeOption, DocumentRow } from '../types'
 
 const documentTypeLabels: Record<string, string> = {
-  totrinh: 'Tờ trình',
-  quyetdinh: 'Quyết định',
-  khenthuong: 'Khen thưởng',
-  baocao: 'Báo cáo',
-  kehoach: 'Kế hoạch',
+  totrinh: 'Tờ Trình',
+  quyetdinh: 'Quyết Định',
+  khenthuong: 'Khen Thưởng',
+  baocao: 'Báo Cáo',
+  kehoach: 'Kế Hoạch',
 }
 
 const labels: Record<string, string> = {
   ...documentTypeLabels,
-  banhanh: 'Ban hành',
+  banhanh: 'Ban Hành',
 }
 
 const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
@@ -54,13 +54,19 @@ function AssigneeCell({ value }: { value: string | null }) {
 
 const documentContent = (document: DocumentRow) => document.description || document.title
 const statusLabels: Partial<Record<DocumentRow['status'], string>> = {
-  issued: 'Đã ban hành',
-  pending_issue: 'Chưa ban hành',
-  archived: 'Chưa ban hành',
+  issued: 'Đã Ban Hành',
+  pending_issue: 'Chưa Ban Hành',
+  archived: 'Chưa Ban Hành',
 }
 
-const documentStatusLabel = (document: DocumentRow) => statusLabels[document.status] || 'Chưa ban hành'
-const documentGroupKey = (document: DocumentRow) => document.status === 'issued' ? 'banhanh' : document.type
+const documentStatusLabel = (document: DocumentRow) => statusLabels[document.status] || 'Chưa Ban Hành'
+const matchesFilter = (document: DocumentRow, filter: string) => {
+  if (!filter) return true
+  if (filter === 'banhanh') return document.status === 'issued'
+  return document.type === filter
+}
+
+const countForFilter = (documents: DocumentRow[], filter: string) => documents.filter(document => matchesFilter(document, filter)).length
 
 const readFileBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader()
@@ -265,7 +271,7 @@ export function DocumentsPage() {
 
   const filteredItems = useMemo(() => {
     return allDocs.filter(doc => {
-      const matchesType = !typeFilter || documentGroupKey(doc) === typeFilter
+      const matchesType = matchesFilter(doc, typeFilter)
       const docYear = doc.document_year || new Date(doc.created_at).getFullYear()
       const matchesYear = !yearFilter || docYear === Number(yearFilter)
       const matchesSearch = !search ||
@@ -304,11 +310,7 @@ export function DocumentsPage() {
   }, [allDocs])
 
   const typeCounts = useMemo(() => {
-    return allDocs.reduce<Record<string, number>>((acc, doc) => {
-      const key = documentGroupKey(doc)
-      acc[key] = (acc[key] ?? 0) + 1
-      return acc
-    }, {})
+    return Object.fromEntries(Object.keys(labels).map(key => [key, countForFilter(allDocs, key)]))
   }, [allDocs])
 
   function exportExcelCsv() {
@@ -609,12 +611,12 @@ export function DocumentsPage() {
   }
 
   const typeList = [
-    { key: 'totrinh', label: 'Tờ trình', icon: Send },
-    { key: 'quyetdinh', label: 'Quyết định', icon: Stamp },
-    { key: 'khenthuong', label: 'Khen thưởng', icon: CheckCircle2 },
-    { key: 'baocao', label: 'Báo cáo', icon: FileText },
-    { key: 'kehoach', label: 'Kế hoạch', icon: Clock3 },
-    { key: 'banhanh', label: 'Ban hành', icon: Hash },
+    { key: 'totrinh', label: 'Tờ Trình', icon: Send },
+    { key: 'quyetdinh', label: 'Quyết Định', icon: Stamp },
+    { key: 'khenthuong', label: 'Khen Thưởng', icon: CheckCircle2 },
+    { key: 'baocao', label: 'Báo Cáo', icon: FileText },
+    { key: 'kehoach', label: 'Kế Hoạch', icon: Clock3 },
+    { key: 'banhanh', label: 'Ban Hành', icon: Hash },
   ]
   const typeSelectDefault = editingDoc?.type && documentTypeLabels[editingDoc.type]
     ? editingDoc.type
@@ -895,7 +897,7 @@ export function DocumentsPage() {
                   {editingDoc && <ListFileDoc documentId={editingDoc.id} refreshKey={fileRefreshKey} pendingFiles={attachments.map(file => ({ name: file.name, kind: 'attachment' }))} fileKind="attachment" onRemoveExistingFile={removeExistingFile} downloadFile={downloadDocumentFile} />}
                 </div>
                 <div>
-                  <FileDropzone label="Ban hành PDF" files={issuedAttachments} onChange={setIssuedAttachments} accept=".pdf,application/pdf" validateFile={isPdfFile} />
+                  <FileDropzone label="Ban Hành PDF" files={issuedAttachments} onChange={setIssuedAttachments} accept=".pdf,application/pdf" validateFile={isPdfFile} />
                   {editingDoc && <ListFileDoc documentId={editingDoc.id} refreshKey={fileRefreshKey} pendingFiles={issuedAttachments.map(file => ({ name: file.name, kind: 'issued_attachment' }))} fileKind="issued_attachment" onRemoveExistingFile={removeExistingFile} downloadFile={downloadDocumentFile} />}
                 </div>
               </div>
