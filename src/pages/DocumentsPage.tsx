@@ -1,5 +1,6 @@
 import { Eye, FilePlus2, Search, Trash2, UploadCloud, X, Send, Stamp, CheckCircle2, FileText, Clock3, Hash, FolderOpen, Download, Pencil } from 'lucide-react'
 import { useCallback, useEffect, useState, useMemo, type FormEvent } from 'react'
+import * as XLSX from 'xlsx'
 import { useAuth } from '../contexts/AuthContext'
 import { useNotifier } from '../contexts/useNotifier'
 import { EmptyState } from '../components/EmptyState'
@@ -313,18 +314,18 @@ export function DocumentsPage() {
     return Object.fromEntries(Object.keys(labels).map(key => [key, countForFilter(allDocs, key)]))
   }, [allDocs])
 
-  function exportExcelCsv() {
-    const rows = [
-      ['Loại', 'Nội dung', 'Năm'],
-      ...filteredItems.map(document => [
-        labels[document.type] || document.type,
-        documentContent(document),
-        String(document.document_year || new Date(document.created_at).getFullYear()),
-      ]),
-    ]
-    const escapeCell = (value: string) => `"${value.replace(/"/g, '""')}"`
-    const csv = `\uFEFF${rows.map(row => row.map(escapeCell).join(',')).join('\r\n')}`
-    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `ho-so-${new Date().toISOString().slice(0, 10)}.csv`)
+  function exportExcelFile() {
+    const rows = filteredItems.map(document => ({
+      'Loại': documentTypeLabels[document.type] || document.type,
+      'Nội dung': documentContent(document),
+      'Người thực hiện': document.assignee_name || 'Chưa gán',
+      'Năm': document.document_year || new Date(document.created_at).getFullYear(),
+    }))
+    const worksheet = XLSX.utils.json_to_sheet(rows, { header: ['Loại', 'Nội dung', 'Người thực hiện', 'Năm'] })
+    worksheet['!cols'] = [{ wch: 18 }, { wch: 80 }, { wch: 42 }, { wch: 12 }]
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Ho so')
+    XLSX.writeFile(workbook, `ho-so-${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
   const isWordFile = (file: File) => /\.(doc|docx)$/i.test(file.name)
@@ -632,7 +633,7 @@ export function DocumentsPage() {
           <p>Tra cứu, tạo mới và theo dõi trạng thái hồ sơ.</p>
         </div>
         <div className="page-heading-actions">
-          <button type="button" className="export-excel-button" onClick={exportExcelCsv}><Download />Xuất Excel</button>
+          <button type="button" className="export-excel-button" onClick={exportExcelFile}><Download />Xuất Excel</button>
           <button className="primary" onClick={openCreateForm}><FilePlus2 />Tạo hồ sơ</button>
         </div>
       </div>

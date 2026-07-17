@@ -267,7 +267,7 @@ export default function AuthPage({
 
         {/* --- Brand / Logo Container --- */}
         <div className={`brand-logo-container ${isLogin ? 'login' : 'register'}`}>
-          <img src="/LacHong/Logo.png" alt="LHU Logo" className="brand-logo-img" />
+          <img src="/Logo.png" alt="LHU Logo" className="brand-logo-img" />
         </div>
 
         {/* --- Form Container --- */}
