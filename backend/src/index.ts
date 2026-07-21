@@ -298,7 +298,8 @@ function splitRawPublicId(publicId: string) {
   }
 
   return {
-    publicId: publicId.slice(0, lastDot),
+    // Raw assets include their extension in the Cloudinary public ID.
+    publicId,
     format: publicId.slice(lastDot + 1).toLowerCase(),
   }
 }
