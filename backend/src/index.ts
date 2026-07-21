@@ -5,6 +5,7 @@ import express from 'express'
 import nodemailer from 'nodemailer'
 import WebSocket from 'ws'
 import { createClient, type User } from '@supabase/supabase-js'
+import { v2 as cloudinary, type UploadApiResponse } from 'cloudinary'
 
 dotenv.config()
 dotenv.config({ path: '../.env' })
@@ -48,6 +49,13 @@ const allowedOrigins = new Set(
 const supabase = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVICE_ROLE_KEY'), {
   auth: { autoRefreshToken: false, persistSession: false },
   realtime: { transport: WebSocket as unknown as typeof globalThis.WebSocket },
+})
+
+cloudinary.config({
+  cloud_name: required('CLOUDINARY_CLOUD_NAME'),
+  api_key: required('CLOUDINARY_API_KEY'),
+  api_secret: required('CLOUDINARY_API_SECRET'),
+  secure: true,
 })
 
 app.use(cors({
@@ -277,45 +285,74 @@ function buildAssignmentMailHtml(params: { assigneeName: string; documentTitle: 
   </div>`
 }
 
-async function ensureDocumentsBucket() {
-  const bucketOptions = {
-    public: false,
-    fileSizeLimit: 5 * 1024 * 1024,
-    allowedMimeTypes: null,
-  }
+const cloudinaryPathPrefix = 'cloudinary:'
 
-  const { error: updateError } = await supabase.storage.updateBucket('documents', bucketOptions)
-  if (!updateError) return
+const isCloudinaryPath = (objectPath: string) => objectPath.startsWith(cloudinaryPathPrefix)
+const toCloudinaryPublicId = (objectPath: string) => objectPath.slice(cloudinaryPathPrefix.length)
 
-  const { error: createError } = await supabase.storage.createBucket('documents', bucketOptions)
-  if (createError) {
-    console.error('Unable to prepare documents bucket:', createError.message)
-  }
-}
+async function uploadDocumentObject(publicId: string, fileBuffer: Buffer) {
+  return new Promise<{ objectPath: string | null; error: Error | null }>((resolve) => {
+    const upload = cloudinary.uploader.upload_stream({
+      resource_type: 'raw',
+      type: 'authenticated',
+      public_id: publicId,
+      overwrite: false,
+    }, (error, result: UploadApiResponse | undefined) => {
+      if (error || !result) {
+        resolve({ objectPath: null, error: new Error(error?.message || 'Cloudinary upload failed') })
+        return
+      }
 
-async function uploadDocumentObject(objectPath: string, fileBuffer: Buffer, mimeType: string) {
-  let result = await supabase.storage.from('documents').upload(objectPath, fileBuffer, {
-    contentType: mimeType,
+      resolve({ objectPath: `${cloudinaryPathPrefix}${result.public_id}`, error: null })
+    })
+
+    upload.end(fileBuffer)
   })
-
-  if (!result.error) return result
-
-  await ensureDocumentsBucket()
-  result = await supabase.storage.from('documents').upload(objectPath, fileBuffer, {
-    contentType: mimeType,
-  })
-
-  return result
 }
 
 const toSafeStorageName = (name: string) => name.replace(/[^\w.-]+/g, '_')
 
 async function downloadDocumentObject(objectPath: string) {
+  if (isCloudinaryPath(objectPath)) {
+    try {
+      const downloadUrl = cloudinary.url(toCloudinaryPublicId(objectPath), {
+        resource_type: 'raw',
+        type: 'authenticated',
+        sign_url: true,
+        secure: true,
+      })
+      const response = await fetch(downloadUrl)
+      if (!response.ok) return { buffer: null, error: new Error(`Cloudinary returned ${response.status}`) }
+      return { buffer: Buffer.from(await response.arrayBuffer()), error: null }
+    } catch (error) {
+      return { buffer: null, error: error instanceof Error ? error : new Error(String(error)) }
+    }
+  }
+
   const { data, error } = await supabase.storage.from('documents').download(objectPath)
   if (error || !data) return { buffer: null, error }
 
   const arrayBuffer = await data.arrayBuffer()
   return { buffer: Buffer.from(arrayBuffer), error: null }
+}
+
+async function deleteDocumentObject(objectPath: string) {
+  if (isCloudinaryPath(objectPath)) {
+    try {
+      const result = await cloudinary.uploader.destroy(toCloudinaryPublicId(objectPath), {
+        resource_type: 'raw',
+        type: 'authenticated',
+        invalidate: true,
+      })
+      if (!['ok', 'not found'].includes(result.result)) return new Error(`Cloudinary delete failed: ${result.result}`)
+      return null
+    } catch (error) {
+      return error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
+  const { error } = await supabase.storage.from('documents').remove([objectPath])
+  return error
 }
 
 async function findExistingDocumentObject(documentId: string, fileKind: string | null, name: string, currentPath: string | null) {
@@ -362,8 +399,10 @@ async function permanentlyDeleteDocument(documentId: string) {
     .filter((path): path is string => typeof path === 'string' && path.length > 0)
 
   if (objectPaths.length > 0) {
-    const { error: storageError } = await supabase.storage.from('documents').remove(objectPaths)
-    if (storageError) return storageError
+    for (const objectPath of objectPaths) {
+      const storageError = await deleteDocumentObject(objectPath)
+      if (storageError) return storageError
+    }
   }
 
   for (const table of ['document_files', 'document_versions', 'review_actions', 'issuances', 'document_shares']) {
@@ -657,11 +696,11 @@ app.post('/api/upload-document-file', requireUser, async (req, res) => {
   }
 
   const safeName = name.replace(/[^\w.-]+/g, '_')
-  const objectPath = `${documentId}/${fileKind}/${randomUUID()}-${safeName}`
-  const { error: uploadError } = await uploadDocumentObject(objectPath, fileBuffer, mimeType)
+  const publicId = `documents/${documentId}/${fileKind}/${randomUUID()}-${safeName}`
+  const { objectPath, error: uploadError } = await uploadDocumentObject(publicId, fileBuffer)
 
-  if (uploadError) {
-    res.status(400).json({ error: `Không lưu được file "${name}": ${uploadError.message}` })
+  if (uploadError || !objectPath) {
+    res.status(400).json({ error: `Không lưu được file "${name}": ${uploadError?.message || 'Cloudinary không trả về đường dẫn file.'}` })
     return
   }
 
@@ -691,7 +730,7 @@ app.post('/api/upload-document-file', requireUser, async (req, res) => {
   }
 
   if (fileInsert.error) {
-    await supabase.storage.from('documents').remove([objectPath])
+    await deleteDocumentObject(objectPath)
     res.status(400).json({ error: `Không ghi được thông tin file "${name}": ${fileInsert.error.message}` })
     return
   }
@@ -755,7 +794,7 @@ app.post('/api/delete-document-file', requireUser, async (req, res) => {
   }
 
   if (file.object_path) {
-    const { error: storageError } = await supabase.storage.from('documents').remove([file.object_path])
+    const storageError = await deleteDocumentObject(file.object_path)
     if (storageError) {
       res.status(400).json({ error: storageError.message })
       return
@@ -856,7 +895,7 @@ app.post('/api/download-document-file', requireUser, async (req, res) => {
   let objectPath = typeof file.object_path === 'string' ? file.object_path : null
   let downloaded = objectPath ? await downloadDocumentObject(objectPath) : { buffer: null, error: null }
 
-  if (!downloaded.buffer) {
+  if (!downloaded.buffer && (!objectPath || !isCloudinaryPath(objectPath))) {
     const fallbackPath = await findExistingDocumentObject(
       file.document_id,
       typeof file.file_kind === 'string' ? file.file_kind : null,
@@ -1306,6 +1345,5 @@ app.use((_req, res) => {
 })
 
 app.listen(port, () => {
-  void ensureDocumentsBucket()
   console.log(`LacHong backend listening on ${port}`)
 })
