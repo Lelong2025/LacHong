@@ -290,6 +290,19 @@ const cloudinaryPathPrefix = 'cloudinary:'
 const isCloudinaryPath = (objectPath: string) => objectPath.startsWith(cloudinaryPathPrefix)
 const toCloudinaryPublicId = (objectPath: string) => objectPath.slice(cloudinaryPathPrefix.length)
 
+function splitRawPublicId(publicId: string) {
+  const lastSlash = publicId.lastIndexOf('/')
+  const lastDot = publicId.lastIndexOf('.')
+  if (lastDot <= lastSlash || lastDot === publicId.length - 1) {
+    return { publicId, format: 'bin' }
+  }
+
+  return {
+    publicId: publicId.slice(0, lastDot),
+    format: publicId.slice(lastDot + 1).toLowerCase(),
+  }
+}
+
 async function uploadDocumentObject(publicId: string, fileBuffer: Buffer) {
   return new Promise<{ objectPath: string | null; error: Error | null }>((resolve) => {
     const upload = cloudinary.uploader.upload_stream({
@@ -315,14 +328,20 @@ const toSafeStorageName = (name: string) => name.replace(/[^\w.-]+/g, '_')
 async function downloadDocumentObject(objectPath: string) {
   if (isCloudinaryPath(objectPath)) {
     try {
-      const downloadUrl = cloudinary.url(toCloudinaryPublicId(objectPath), {
+      const rawAsset = splitRawPublicId(toCloudinaryPublicId(objectPath))
+      const downloadUrl = cloudinary.utils.private_download_url(rawAsset.publicId, rawAsset.format, {
         resource_type: 'raw',
         type: 'authenticated',
-        sign_url: true,
-        secure: true,
+        expires_at: Math.floor(Date.now() / 1000) + 5 * 60,
       })
       const response = await fetch(downloadUrl)
-      if (!response.ok) return { buffer: null, error: new Error(`Cloudinary returned ${response.status}`) }
+      if (!response.ok) {
+        const details = await response.text().catch(() => '')
+        return {
+          buffer: null,
+          error: new Error(`Cloudinary returned ${response.status}${details ? `: ${details.slice(0, 200)}` : ''}`),
+        }
+      }
       return { buffer: Buffer.from(await response.arrayBuffer()), error: null }
     } catch (error) {
       return { buffer: null, error: error instanceof Error ? error : new Error(String(error)) }
@@ -917,8 +936,9 @@ app.post('/api/download-document-file', requireUser, async (req, res) => {
   }
 
   if (!downloaded.buffer) {
+    if (downloaded.error) console.error(`Unable to download document file ${file.id}:`, downloaded.error.message)
     res.status(404).json({
-      error: 'File không còn tồn tại trong Storage. Vui lòng xóa file này và upload lại.',
+      error: 'Không tải được file từ nơi lưu trữ. Vui lòng thử lại hoặc liên hệ quản trị viên.',
     })
     return
   }
