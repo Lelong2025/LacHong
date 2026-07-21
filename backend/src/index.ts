@@ -785,7 +785,7 @@ app.post('/api/delete-document-file', requireUser, async (req, res) => {
     .single()
 
   if (fileError || !file || file.deleted_at) {
-    res.status(404).json({ error: 'Không tìm thấy file.' })
+    res.status(404).json({ error: 'Không tìm thấy thông tin file trong cơ sở dữ liệu.', code: 'FILE_RECORD_NOT_FOUND' })
     return
   }
 
@@ -870,7 +870,7 @@ app.post('/api/download-document-file', requireUser, async (req, res) => {
     .single()
 
   if (fileError || !file || file.deleted_at) {
-    res.status(404).json({ error: 'Không tìm thấy file.' })
+    res.status(404).json({ error: 'Không tìm thấy thông tin file trong cơ sở dữ liệu.', code: 'FILE_RECORD_NOT_FOUND' })
     return
   }
 
@@ -881,7 +881,7 @@ app.post('/api/download-document-file', requireUser, async (req, res) => {
     .single()
 
   if (documentError || !document || document.deleted_at) {
-    res.status(404).json({ error: 'Không tìm thấy hồ sơ.' })
+    res.status(404).json({ error: 'Không tìm thấy hồ sơ chứa file hoặc hồ sơ đã bị xóa.', code: 'DOCUMENT_NOT_FOUND' })
     return
   }
 
@@ -937,8 +937,11 @@ app.post('/api/download-document-file', requireUser, async (req, res) => {
 
   if (!downloaded.buffer) {
     if (downloaded.error) console.error(`Unable to download document file ${file.id}:`, downloaded.error.message)
-    res.status(404).json({
-      error: 'Không tải được file từ nơi lưu trữ. Vui lòng thử lại hoặc liên hệ quản trị viên.',
+    res.status(502).json({
+      error: downloaded.error
+        ? `Cloudinary không trả được file: ${downloaded.error.message}`
+        : 'Không tìm thấy đường dẫn file trong nơi lưu trữ.',
+      code: 'STORAGE_DOWNLOAD_FAILED',
     })
     return
   }
