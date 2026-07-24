@@ -307,7 +307,7 @@ export function DashboardPage() {
       <section className="chart-grid type-assignee-grid">
         {typeAssigneeStats.map(item => (
           <article className="chart-card" key={item.key}>
-            <h2>{item.label.toLocaleLowerCase('vi-VN')}</h2>
+            <h2>{`${item.label.charAt(0).toLocaleUpperCase('vi-VN')}${item.label.slice(1).toLocaleLowerCase('vi-VN')}`}</h2>
             <StackedYearBarChart items={item.items} years={item.years} max={item.max} emptyMessage="Chưa có dữ liệu." />
           </article>
         ))}
