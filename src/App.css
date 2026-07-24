@@ -2509,24 +2509,18 @@ td small {
   border-color: var(--blue) !important;
 }
 
-.dashboard-summary-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.dashboard-type-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.dashboard-metrics-row {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
 }
 
 @media (max-width: 760px) {
-  .dashboard-type-grid {
+  .dashboard-metrics-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 480px) {
-
-  .dashboard-summary-grid,
-  .dashboard-type-grid {
+  .dashboard-metrics-row {
     grid-template-columns: 1fr;
   }
 }
@@ -2783,7 +2777,7 @@ td small {
 }
 
 .type-assignee-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .type-assignee-grid .chart-card {

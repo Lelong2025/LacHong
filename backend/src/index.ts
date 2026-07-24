@@ -240,11 +240,11 @@ function sendAssignmentMailWithLog4NetInBackground(to: string, subject: string, 
 }
 
 const documentTypeLabels: Record<string, string> = {
-  totrinh: 'Tờ trình',
-  quyetdinh: 'Quyết định',
-  khenthuong: 'Khen thưởng',
-  baocao: 'Báo cáo',
-  kehoach: 'Kế hoạch',
+  totrinh: 'Tờ Trình',
+  quyetdinh: 'Quyết Định',
+  khenthuong: 'Khen Thưởng',
+  baocao: 'Báo Cáo',
+  kehoach: 'Kế Hoạch',
 }
 
 function buildAssignmentMailHtml(params: { assigneeName: string; documentTitle: string; documentType: string }) {

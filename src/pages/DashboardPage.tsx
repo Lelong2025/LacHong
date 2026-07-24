@@ -201,8 +201,8 @@ export function DashboardPage() {
   }, [scopedDocuments])
 
   const typeAssigneeStats = useMemo(() =>
-    Object.entries(documentTypeLabels).map(([key, label]) => {
-      const typeDocs = scopedDocuments.filter(doc => doc.type === key)
+    Object.entries(groupLabels).map(([key, label]) => {
+      const typeDocs = scopedDocuments.filter(doc => matchesGroup(doc, key))
       const years = Array.from(new Set(typeDocs.map(doc => doc.document_year || new Date(doc.created_at).getFullYear()))).sort((a, b) => a - b)
       const counts = typeDocs.reduce<Record<string, Record<number, number>>>((acc, doc) => {
         const year = doc.document_year || new Date(doc.created_at).getFullYear()
@@ -267,8 +267,8 @@ export function DashboardPage() {
         </select>
       </section>
 
-      {/* === CHỈ SỐ TỔNG QUAN === */}
-      <section className="metric-grid dashboard-summary-grid">
+      {/* === CHỈ SỐ TỔNG QUAN — MỘT HÀNG === */}
+      <section className="metric-grid dashboard-metrics-row" style={{ marginBottom: '1.25rem' }}>
         <article className="metric-card dashboard-metric-card active">
           <FileText />
           <span>Tổng hồ sơ</span>
@@ -279,10 +279,6 @@ export function DashboardPage() {
           <span>Tổng lưu trữ</span>
           <b>{totalArchived}</b>
         </article>
-      </section>
-
-      {/* === 6 NHÓM HỒ SƠ — 3 CỘT × 2 HÀNG === */}
-      <section className="metric-grid dashboard-type-grid" style={{ marginBottom: '1.25rem' }}>
         {metricStats.map(({ key, label, icon: Icon, total }) => (
           <article className="metric-card dashboard-metric-card" key={key} style={total === 0 ? { opacity: 0.5 } : {}}>
             <Icon />
