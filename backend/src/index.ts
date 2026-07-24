@@ -440,6 +440,29 @@ async function ensureDriveShortcut(name: string, parentId: string, targetId: str
   })
 }
 
+async function ensureDriveFolderSharedWith(documentFolderId: string, email: string) {
+  const permissions = await googleDrive.permissions.list({
+    fileId: documentFolderId,
+    fields: 'permissions(id,type,emailAddress,role)',
+  })
+  const alreadyShared = permissions.data.permissions?.some(permission =>
+    permission.type === 'user' &&
+    permission.emailAddress?.toLowerCase() === email.toLowerCase()
+  )
+  if (alreadyShared) return
+
+  await googleDrive.permissions.create({
+    fileId: documentFolderId,
+    requestBody: {
+      type: 'user',
+      role: 'reader',
+      emailAddress: email,
+    },
+    sendNotificationEmail: true,
+    emailMessage: 'Bạn được thêm vào một hồ sơ trên Hệ thống quản lý hồ sơ Lạc Hồng.',
+  })
+}
+
 async function syncDocumentDriveShortcuts(documentId: string) {
   if (!googleDriveConfigured) return
   const { data: document } = await supabase
@@ -466,6 +489,9 @@ async function syncDocumentDriveShortcuts(documentId: string) {
   for (const assignee of assignees) {
     const assigneeFolderId = await ensureDriveFolder(assignee.folderName, googleDriveRootFolderId)
     await ensureDriveShortcut(shortcutName, assigneeFolderId, documentFolderId)
+    if (assignee.email !== process.env.GOOGLE_DRIVE_ACCOUNT_EMAIL?.trim().toLowerCase()) {
+      await ensureDriveFolderSharedWith(documentFolderId, assignee.email)
+    }
   }
 }
 
