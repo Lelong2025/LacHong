@@ -201,8 +201,8 @@ export function DashboardPage() {
   }, [scopedDocuments])
 
   const typeAssigneeStats = useMemo(() =>
-    Object.entries(documentTypeLabels).map(([key, label]) => {
-      const typeDocs = scopedDocuments.filter(doc => doc.type === key)
+    Object.entries(groupLabels).map(([key, label]) => {
+      const typeDocs = scopedDocuments.filter(doc => matchesGroup(doc, key))
       const years = Array.from(new Set(typeDocs.map(doc => doc.document_year || new Date(doc.created_at).getFullYear()))).sort((a, b) => a - b)
       const counts = typeDocs.reduce<Record<string, Record<number, number>>>((acc, doc) => {
         const year = doc.document_year || new Date(doc.created_at).getFullYear()
@@ -267,8 +267,8 @@ export function DashboardPage() {
         </select>
       </section>
 
-      {/* === METRIC GRID — 1 level: tổng quan + theo loại === */}
-      <section className="metric-grid" style={{ marginBottom: '1.25rem' }}>
+      {/* === CHỈ SỐ TỔNG QUAN — MỘT HÀNG === */}
+      <section className="metric-grid dashboard-metrics-row" style={{ marginBottom: '1.25rem' }}>
         <article className="metric-card dashboard-metric-card active">
           <FileText />
           <span>Tổng hồ sơ</span>
@@ -307,7 +307,7 @@ export function DashboardPage() {
       <section className="chart-grid type-assignee-grid">
         {typeAssigneeStats.map(item => (
           <article className="chart-card" key={item.key}>
-            <h2>{item.label.toLocaleLowerCase('vi-VN')}</h2>
+            <h2>{`${item.label.charAt(0).toLocaleUpperCase('vi-VN')}${item.label.slice(1).toLocaleLowerCase('vi-VN')}`}</h2>
             <StackedYearBarChart items={item.items} years={item.years} max={item.max} emptyMessage="Chưa có dữ liệu." />
           </article>
         ))}
