@@ -267,8 +267,8 @@ export function DashboardPage() {
         </select>
       </section>
 
-      {/* === METRIC GRID — 1 level: tổng quan + theo loại === */}
-      <section className="metric-grid" style={{ marginBottom: '1.25rem' }}>
+      {/* === CHỈ SỐ TỔNG QUAN === */}
+      <section className="metric-grid dashboard-summary-grid">
         <article className="metric-card dashboard-metric-card active">
           <FileText />
           <span>Tổng hồ sơ</span>
@@ -279,6 +279,10 @@ export function DashboardPage() {
           <span>Tổng lưu trữ</span>
           <b>{totalArchived}</b>
         </article>
+      </section>
+
+      {/* === 6 NHÓM HỒ SƠ — 3 CỘT × 2 HÀNG === */}
+      <section className="metric-grid dashboard-type-grid" style={{ marginBottom: '1.25rem' }}>
         {metricStats.map(({ key, label, icon: Icon, total }) => (
           <article className="metric-card dashboard-metric-card" key={key} style={total === 0 ? { opacity: 0.5 } : {}}>
             <Icon />
