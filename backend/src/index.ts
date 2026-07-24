@@ -516,7 +516,8 @@ app.get('/api/resource-usage', requireUser, async (req, res) => {
 
   // Cache on the backend only so a browser never keeps a stale error response.
   res.setHeader('Cache-Control', 'private, no-store')
-  if (resourceUsageCache && resourceUsageCache.expiresAt > Date.now()) {
+  const forceRefresh = req.query.refresh === '1'
+  if (!forceRefresh && resourceUsageCache && resourceUsageCache.expiresAt > Date.now()) {
     res.json(resourceUsageCache.payload)
     return
   }

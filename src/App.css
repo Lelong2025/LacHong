@@ -60,13 +60,59 @@
   border-top: 1px solid var(--line)
 }
 
+.resource-usage-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .7rem
+}
+
 .resource-usage h2 {
-  margin: 0 0 .7rem;
+  margin: 0;
   color: var(--muted);
   font-size: .7rem;
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase
+}
+
+.resource-usage-title button {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer
+}
+
+.resource-usage-title button:hover:not(:disabled) {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: #edf4ff
+}
+
+.resource-usage-title button:disabled {
+  cursor: default;
+  opacity: .55
+}
+
+.resource-usage-title svg {
+  width: 13px;
+  height: 13px
+}
+
+.resource-usage-title svg.is-spinning {
+  animation: resource-usage-spin .7s linear infinite
+}
+
+@keyframes resource-usage-spin {
+  to {
+    transform: rotate(360deg)
+  }
 }
 
 .resource-usage-card {
@@ -1901,6 +1947,10 @@ td small {
 :root[data-theme='dark'] .resource-usage-track,
 :root[data-theme='dark'] .resource-usage-skeleton {
   background-color: #444
+}
+
+:root[data-theme='dark'] .resource-usage-title button:hover:not(:disabled) {
+  background: #333
 }
 
 :root[data-theme='dark'] .toolbar label,

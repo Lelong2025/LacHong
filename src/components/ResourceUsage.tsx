@@ -1,5 +1,5 @@
-import { Cloud, Database } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { Cloud, Database, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL
@@ -133,41 +133,54 @@ export function ResourceUsage() {
   const { session } = useAuth()
   const [usage, setUsage] = useState<ResourceUsageResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
+  const load = useCallback(async (forceRefresh = false) => {
     const token = session?.access_token
     if (!token || !backendUrl) {
       setLoading(false)
       return
     }
 
-    let active = true
-    const load = async () => {
-      try {
-        const response = await fetch(`${backendUrl}/api/resource-usage`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!response.ok) throw new Error('Unable to load resource usage')
-        const payload = await response.json() as ResourceUsageResponse
-        if (active) setUsage(payload)
-      } catch {
-        // Keep the last successful values if a background refresh fails.
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-
-    void load()
-    const interval = window.setInterval(() => void load(), 5 * 60 * 1000)
-    return () => {
-      active = false
-      window.clearInterval(interval)
+    if (forceRefresh) setRefreshing(true)
+    try {
+      const query = forceRefresh ? '?refresh=1' : ''
+      const response = await fetch(`${backendUrl}/api/resource-usage${query}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!response.ok) throw new Error('Unable to load resource usage')
+      const payload = await response.json() as ResourceUsageResponse
+      setUsage(payload)
+    } catch {
+      // Keep the last successful values if a background refresh fails.
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
     }
   }, [session?.access_token])
 
+  useEffect(() => {
+    void load()
+    const interval = window.setInterval(() => void load(), 5 * 60 * 1000)
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [load])
+
   return (
     <section className="resource-usage" aria-label="Dung lượng hệ thống">
-      <h2>Dung lượng hệ thống</h2>
+      <div className="resource-usage-title">
+        <h2>Dung lượng hệ thống</h2>
+        <button
+          type="button"
+          title="Lấy dữ liệu dung lượng mới nhất"
+          aria-label="Làm mới dung lượng hệ thống"
+          disabled={refreshing || !session?.access_token || !backendUrl}
+          onClick={() => void load(true)}
+        >
+          <RefreshCw className={refreshing ? 'is-spinning' : ''} />
+        </button>
+      </div>
       <UsageBar label="Supabase Database" icon={<Database />} value={usage?.supabase} loading={loading} />
       <UsageBar label="Cloudinary" icon={<Cloud />} value={usage?.cloudinary} loading={loading} />
     </section>
