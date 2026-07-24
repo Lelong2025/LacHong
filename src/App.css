@@ -2524,6 +2524,7 @@ td small {
 }
 
 @media (max-width: 480px) {
+
   .dashboard-summary-grid,
   .dashboard-type-grid {
     grid-template-columns: 1fr;
