@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-import { Database, HardDrive } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
-=======
-import { Cloud, Database, RefreshCw } from 'lucide-react'
+import { Database, HardDrive, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
->>>>>>> da03a44e4b750d898fb65d7151f39b6c9928a0b0
 import { useAuth } from '../contexts/AuthContext'
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL
