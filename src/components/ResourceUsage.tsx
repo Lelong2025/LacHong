@@ -1,4 +1,4 @@
-import { Cloud, Database } from 'lucide-react'
+import { Database, HardDrive } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -23,7 +23,7 @@ type UsageSource = UsageValue | { error: string }
 
 type ResourceUsageResponse = {
   supabase: UsageSource
-  cloudinary: UsageSource
+  googleDrive: UsageSource
   updatedAt: string
 }
 
@@ -169,7 +169,7 @@ export function ResourceUsage() {
     <section className="resource-usage" aria-label="Dung lượng hệ thống">
       <h2>Dung lượng hệ thống</h2>
       <UsageBar label="Supabase Database" icon={<Database />} value={usage?.supabase} loading={loading} />
-      <UsageBar label="Cloudinary" icon={<Cloud />} value={usage?.cloudinary} loading={loading} />
+      <UsageBar label="Google Drive" icon={<HardDrive />} value={usage?.googleDrive} loading={loading} />
     </section>
   )
 }

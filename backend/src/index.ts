@@ -1,11 +1,12 @@
 import cors from 'cors'
-import { randomUUID } from 'node:crypto'
+import { Readable } from 'node:stream'
 import dotenv from 'dotenv'
 import express from 'express'
+import { google } from 'googleapis'
 import nodemailer from 'nodemailer'
 import WebSocket from 'ws'
 import { createClient, type User } from '@supabase/supabase-js'
-import { v2 as cloudinary, type UploadApiResponse } from 'cloudinary'
+import { v2 as cloudinary } from 'cloudinary'
 
 dotenv.config()
 dotenv.config({ path: '../.env' })
@@ -51,12 +52,33 @@ const supabase = createClient(required('SUPABASE_URL'), required('SUPABASE_SERVI
   realtime: { transport: WebSocket as unknown as typeof globalThis.WebSocket },
 })
 
-cloudinary.config({
-  cloud_name: required('CLOUDINARY_CLOUD_NAME'),
-  api_key: required('CLOUDINARY_API_KEY'),
-  api_secret: required('CLOUDINARY_API_SECRET'),
-  secure: true,
-})
+const cloudinaryConfigured = Boolean(
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET
+)
+
+if (cloudinaryConfigured) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  })
+}
+
+const googleDriveConfigured = Boolean(
+  process.env.GOOGLE_DRIVE_CLIENT_ID &&
+  process.env.GOOGLE_DRIVE_CLIENT_SECRET &&
+  process.env.GOOGLE_DRIVE_REFRESH_TOKEN
+)
+const googleDriveRootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || 'root'
+const googleDriveAuth = new google.auth.OAuth2(
+  process.env.GOOGLE_DRIVE_CLIENT_ID,
+  process.env.GOOGLE_DRIVE_CLIENT_SECRET,
+)
+googleDriveAuth.setCredentials({ refresh_token: process.env.GOOGLE_DRIVE_REFRESH_TOKEN })
+const googleDrive = google.drive({ version: 'v3', auth: googleDriveAuth })
 
 app.use(cors({
   origin: frontendOrigin === '*'
@@ -286,9 +308,12 @@ function buildAssignmentMailHtml(params: { assigneeName: string; documentTitle: 
 }
 
 const cloudinaryPathPrefix = 'cloudinary:'
+const googleDrivePathPrefix = 'gdrive:'
 
 const isCloudinaryPath = (objectPath: string) => objectPath.startsWith(cloudinaryPathPrefix)
 const toCloudinaryPublicId = (objectPath: string) => objectPath.slice(cloudinaryPathPrefix.length)
+const isGoogleDrivePath = (objectPath: string) => objectPath.startsWith(googleDrivePathPrefix)
+const toGoogleDriveFileId = (objectPath: string) => objectPath.slice(googleDrivePathPrefix.length)
 
 function splitRawPublicId(publicId: string) {
   const lastSlash = publicId.lastIndexOf('/')
@@ -304,30 +329,196 @@ function splitRawPublicId(publicId: string) {
   }
 }
 
-async function uploadDocumentObject(publicId: string, fileBuffer: Buffer) {
-  return new Promise<{ objectPath: string | null; error: Error | null }>((resolve) => {
-    const upload = cloudinary.uploader.upload_stream({
-      resource_type: 'raw',
-      type: 'authenticated',
-      public_id: publicId,
-      overwrite: false,
-    }, (error, result: UploadApiResponse | undefined) => {
-      if (error || !result) {
-        resolve({ objectPath: null, error: new Error(error?.message || 'Cloudinary upload failed') })
-        return
-      }
+const escapeDriveQuery = (value: string) => value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+const safeDriveName = (value: string) => Array.from(value)
+  .map(character => character.charCodeAt(0) < 32 || character === '/' || character === '\\' ? '-' : character)
+  .join('')
+  .trim()
+  .slice(0, 180) || 'Không tên'
 
-      resolve({ objectPath: `${cloudinaryPathPrefix}${result.public_id}`, error: null })
-    })
-
-    upload.end(fileBuffer)
+async function findDriveItem(name: string, parentId: string, mimeType?: string) {
+  const clauses = [
+    `'${escapeDriveQuery(parentId)}' in parents`,
+    `name = '${escapeDriveQuery(name)}'`,
+    'trashed = false',
+  ]
+  if (mimeType) clauses.push(`mimeType = '${escapeDriveQuery(mimeType)}'`)
+  const response = await googleDrive.files.list({
+    q: clauses.join(' and '),
+    fields: 'files(id,name,mimeType,shortcutDetails)',
+    pageSize: 10,
   })
+  return response.data.files?.[0] || null
+}
+
+async function ensureDriveFolder(name: string, parentId: string) {
+  const safeName = safeDriveName(name)
+  const existing = await findDriveItem(safeName, parentId, 'application/vnd.google-apps.folder')
+  if (existing?.id) return existing.id
+
+  const created = await googleDrive.files.create({
+    requestBody: {
+      name: safeName,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentId],
+    },
+    fields: 'id',
+  })
+  if (!created.data.id) throw new Error(`Google Drive không tạo được thư mục "${safeName}".`)
+  return created.data.id
+}
+
+function parseDocumentAssignees(value: string | null | undefined) {
+  if (!value) return []
+  return value.split(',').map(item => item.trim()).filter(Boolean).map(item => {
+    const match = item.match(/^(.*)\s+\(([^)]+@[^)]+)\)$/)
+    const email = (match?.[2] || item).trim().toLowerCase()
+    const name = match?.[1]?.trim() || ''
+    return { email, name, folderName: name ? `${name} (${email})` : email }
+  }).filter(item => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item.email))
+}
+
+async function getDriveDocumentFolder(document: {
+  id: string
+  code?: string | null
+  title?: string | null
+}) {
+  const originalsFolderId = await ensureDriveFolder('_Hồ sơ gốc', googleDriveRootFolderId)
+  const prefix = document.code?.trim() ? `[${document.code.trim()}] ` : ''
+  const folderName = safeDriveName(`${prefix}${document.title || 'Hồ sơ'} (${document.id.slice(0, 8)})`)
+  const existing = await googleDrive.files.list({
+    q: [
+      `'${escapeDriveQuery(originalsFolderId)}' in parents`,
+      `mimeType = 'application/vnd.google-apps.folder'`,
+      `appProperties has { key = 'documentId' and value = '${escapeDriveQuery(document.id)}' }`,
+      'trashed = false',
+    ].join(' and '),
+    fields: 'files(id,name)',
+    pageSize: 1,
+  })
+  const existingFolder = existing.data.files?.[0]
+  if (existingFolder?.id) {
+    if (existingFolder.name !== folderName) {
+      await googleDrive.files.update({
+        fileId: existingFolder.id,
+        requestBody: { name: folderName },
+      })
+    }
+    return existingFolder.id
+  }
+
+  const created = await googleDrive.files.create({
+    requestBody: {
+      name: folderName,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [originalsFolderId],
+      appProperties: { documentId: document.id },
+    },
+    fields: 'id',
+  })
+  if (!created.data.id) throw new Error(`Google Drive không tạo được thư mục hồ sơ "${folderName}".`)
+  return created.data.id
+}
+
+async function ensureDriveShortcut(name: string, parentId: string, targetId: string) {
+  const safeName = safeDriveName(name)
+  const existing = await findDriveItem(safeName, parentId)
+  if (
+    existing?.mimeType === 'application/vnd.google-apps.shortcut' &&
+    existing.shortcutDetails?.targetId === targetId
+  ) return
+
+  await googleDrive.files.create({
+    requestBody: {
+      name: safeName,
+      mimeType: 'application/vnd.google-apps.shortcut',
+      parents: [parentId],
+      shortcutDetails: { targetId },
+      appProperties: { targetDocumentFolderId: targetId },
+    },
+    fields: 'id',
+  })
+}
+
+async function syncDocumentDriveShortcuts(documentId: string) {
+  if (!googleDriveConfigured) return
+  const { data: document } = await supabase
+    .from('documents')
+    .select('id,code,title,assignee_name,created_by')
+    .eq('id', documentId)
+    .single()
+  if (!document) return
+
+  let assignees = parseDocumentAssignees(document.assignee_name)
+  if (!assignees.length) {
+    const creator = await getCurrentProfile(document.created_by)
+    if (creator?.email) {
+      assignees = [{
+        email: creator.email,
+        name: creator.full_name || '',
+        folderName: creator.full_name ? `${creator.full_name} (${creator.email})` : creator.email,
+      }]
+    }
+  }
+
+  const documentFolderId = await getDriveDocumentFolder(document)
+  const shortcutName = `${document.code ? `[${document.code}] ` : ''}${document.title || 'Hồ sơ'}`
+  for (const assignee of assignees) {
+    const assigneeFolderId = await ensureDriveFolder(assignee.folderName, googleDriveRootFolderId)
+    await ensureDriveShortcut(shortcutName, assigneeFolderId, documentFolderId)
+  }
+}
+
+async function uploadDocumentObject(
+  document: { id: string; code?: string | null; title?: string | null },
+  name: string,
+  mimeType: string,
+  fileBuffer: Buffer,
+) {
+  if (!googleDriveConfigured) {
+    return { objectPath: null, error: new Error('Google Drive chưa được cấu hình OAuth trên backend.') }
+  }
+
+  try {
+    const documentFolderId = await getDriveDocumentFolder(document)
+    const upload = await googleDrive.files.create({
+      requestBody: {
+        name: safeDriveName(name),
+        parents: [documentFolderId],
+      },
+      media: {
+        mimeType,
+        body: Readable.from(fileBuffer),
+      },
+      fields: 'id',
+    })
+    if (!upload.data.id) throw new Error('Google Drive không trả về mã file.')
+    await syncDocumentDriveShortcuts(document.id)
+    return { objectPath: `${googleDrivePathPrefix}${upload.data.id}`, error: null }
+  } catch (error) {
+    return { objectPath: null, error: error instanceof Error ? error : new Error(String(error)) }
+  }
 }
 
 const toSafeStorageName = (name: string) => name.replace(/[^\w.-]+/g, '_')
 
 async function downloadDocumentObject(objectPath: string) {
+  if (isGoogleDrivePath(objectPath)) {
+    try {
+      const response = await googleDrive.files.get(
+        { fileId: toGoogleDriveFileId(objectPath), alt: 'media' },
+        { responseType: 'arraybuffer' },
+      )
+      return { buffer: Buffer.from(response.data as ArrayBuffer), error: null }
+    } catch (error) {
+      return { buffer: null, error: error instanceof Error ? error : new Error(String(error)) }
+    }
+  }
+
   if (isCloudinaryPath(objectPath)) {
+    if (!cloudinaryConfigured) {
+      return { buffer: null, error: new Error('Cloudinary chưa được cấu hình để đọc file cũ.') }
+    }
     try {
       const rawAsset = splitRawPublicId(toCloudinaryPublicId(objectPath))
       const downloadUrl = cloudinary.utils.private_download_url(rawAsset.publicId, rawAsset.format, {
@@ -357,7 +548,20 @@ async function downloadDocumentObject(objectPath: string) {
 }
 
 async function deleteDocumentObject(objectPath: string) {
+  if (isGoogleDrivePath(objectPath)) {
+    try {
+      await googleDrive.files.delete({ fileId: toGoogleDriveFileId(objectPath) })
+      return null
+    } catch (error) {
+      const status = (error as { code?: number; response?: { status?: number } })?.code ||
+        (error as { response?: { status?: number } })?.response?.status
+      if (status === 404) return null
+      return error instanceof Error ? error : new Error(String(error))
+    }
+  }
+
   if (isCloudinaryPath(objectPath)) {
+    if (!cloudinaryConfigured) return new Error('Cloudinary chưa được cấu hình để xóa file cũ.')
     try {
       const result = await cloudinary.uploader.destroy(toCloudinaryPublicId(objectPath), {
         resource_type: 'raw',
@@ -478,7 +682,7 @@ type UsageValue = {
 
 type ResourceUsagePayload = {
   supabase: UsageValue | { error: string }
-  cloudinary: UsageValue | { error: string }
+  googleDrive: UsageValue | { error: string }
   updatedAt: string
 }
 
@@ -521,9 +725,11 @@ app.get('/api/resource-usage', requireUser, async (req, res) => {
     return
   }
 
-  const [databaseResult, cloudinaryResult] = await Promise.allSettled([
+  const [databaseResult, googleDriveResult] = await Promise.allSettled([
     supabase.rpc('admin_database_size_bytes'),
-    cloudinary.api.usage(),
+    googleDriveConfigured
+      ? googleDrive.about.get({ fields: 'storageQuota' })
+      : Promise.reject(new Error('Google Drive OAuth is not configured')),
   ])
 
   let databaseUsage: ResourceUsagePayload['supabase']
@@ -540,52 +746,25 @@ app.get('/api/resource-usage', requireUser, async (req, res) => {
     databaseUsage = { error: 'Không đọc được dung lượng database.' }
   }
 
-  let cloudinaryUsage: ResourceUsagePayload['cloudinary']
-  if (cloudinaryResult.status === 'fulfilled') {
-    const usageResponse = cloudinaryResult.value as {
-      storage?: { usage?: number; limit?: number }
-      credits?: { usage?: number; limit?: number }
-    }
-    const storageUsedBytes = Number(usageResponse.storage?.usage)
-    const reportedLimit = Number(usageResponse.storage?.limit)
-    const configuredLimit = Number(process.env.CLOUDINARY_STORAGE_LIMIT_BYTES)
-    const creditUsage = Number(usageResponse.credits?.usage)
-    const creditLimit = Number(usageResponse.credits?.limit)
-
-    if (Number.isFinite(storageUsedBytes) && Number.isFinite(reportedLimit) && reportedLimit > 0) {
-      cloudinaryUsage = toUsageValue(storageUsedBytes, reportedLimit)
-    } else if (Number.isFinite(creditUsage) && Number.isFinite(creditLimit) && creditLimit > 0) {
-      // Cloudinary Free/self-service plans share credits between storage,
-      // transformations and bandwidth. One credit is equivalent to 1 GB of storage.
-      const safeCreditUsage = Math.max(0, creditUsage)
-      const remainingCredits = Math.max(0, creditLimit - safeCreditUsage)
-      const bytesPerCredit = 1024 * 1024 * 1024
-      cloudinaryUsage = {
-        ...toUsageValue(safeCreditUsage * bytesPerCredit, creditLimit * bytesPerCredit),
-        creditDetails: {
-          used: safeCreditUsage,
-          limit: creditLimit,
-          remaining: remainingCredits,
-          storageUsedBytes: Math.max(0, storageUsedBytes),
-          maxAdditionalStorageBytes: remainingCredits * bytesPerCredit,
-        },
-      }
-    } else if (Number.isFinite(storageUsedBytes) && Number.isFinite(configuredLimit) && configuredLimit > 0) {
-      cloudinaryUsage = toUsageValue(storageUsedBytes, configuredLimit)
-    } else {
-      cloudinaryUsage = { error: 'Cloudinary không trả về giới hạn lưu trữ.' }
-    }
+  let googleDriveUsage: ResourceUsagePayload['googleDrive']
+  if (googleDriveResult.status === 'fulfilled') {
+    const quota = googleDriveResult.value.data.storageQuota
+    const usedBytes = Number(quota?.usage)
+    const limitBytes = Number(quota?.limit)
+    googleDriveUsage = Number.isFinite(usedBytes) && Number.isFinite(limitBytes) && limitBytes > 0
+      ? toUsageValue(usedBytes, limitBytes, process.env.GOOGLE_DRIVE_ACCOUNT_EMAIL || undefined)
+      : { error: 'Google Drive không trả về giới hạn lưu trữ.' }
   } else {
-    console.error('Unable to load Cloudinary usage:', cloudinaryResult.reason)
-    cloudinaryUsage = { error: 'Không đọc được dung lượng Cloudinary.' }
+    console.error('Unable to load Google Drive usage:', googleDriveResult.reason)
+    googleDriveUsage = { error: 'Không đọc được dung lượng Google Drive.' }
   }
 
   const payload: ResourceUsagePayload = {
     supabase: databaseUsage,
-    cloudinary: cloudinaryUsage,
+    googleDrive: googleDriveUsage,
     updatedAt: new Date().toISOString(),
   }
-  const hasErrors = 'error' in databaseUsage || 'error' in cloudinaryUsage
+  const hasErrors = 'error' in databaseUsage || 'error' in googleDriveUsage
   resourceUsageCache = {
     expiresAt: Date.now() + (hasErrors ? 15 * 1000 : resourceUsageCacheMs),
     payload,
@@ -824,7 +1003,7 @@ app.post('/api/upload-document-file', requireUser, async (req, res) => {
 
   const { data: document, error: documentError } = await supabase
     .from('documents')
-    .select('id,created_by,deleted_at')
+    .select('id,code,title,assignee_name,created_by,deleted_at')
     .eq('id', documentId)
     .single()
 
@@ -850,12 +1029,10 @@ app.post('/api/upload-document-file', requireUser, async (req, res) => {
     return
   }
 
-  const safeName = name.replace(/[^\w.-]+/g, '_')
-  const publicId = `documents/${documentId}/${fileKind}/${randomUUID()}-${safeName}`
-  const { objectPath, error: uploadError } = await uploadDocumentObject(publicId, fileBuffer)
+  const { objectPath, error: uploadError } = await uploadDocumentObject(document, name, mimeType, fileBuffer)
 
   if (uploadError || !objectPath) {
-    res.status(400).json({ error: `Không lưu được file "${name}": ${uploadError?.message || 'Cloudinary không trả về đường dẫn file.'}` })
+    res.status(400).json({ error: `Không lưu được file "${name}" lên Google Drive: ${uploadError?.message || 'Drive không trả về đường dẫn file.'}` })
     return
   }
 
@@ -1050,7 +1227,7 @@ app.post('/api/download-document-file', requireUser, async (req, res) => {
   let objectPath = typeof file.object_path === 'string' ? file.object_path : null
   let downloaded = objectPath ? await downloadDocumentObject(objectPath) : { buffer: null, error: null }
 
-  if (!downloaded.buffer && (!objectPath || !isCloudinaryPath(objectPath))) {
+  if (!downloaded.buffer && (!objectPath || (!isCloudinaryPath(objectPath) && !isGoogleDrivePath(objectPath)))) {
     const fallbackPath = await findExistingDocumentObject(
       file.document_id,
       typeof file.file_kind === 'string' ? file.file_kind : null,
@@ -1075,7 +1252,7 @@ app.post('/api/download-document-file', requireUser, async (req, res) => {
     if (downloaded.error) console.error(`Unable to download document file ${file.id}:`, downloaded.error.message)
     res.status(502).json({
       error: downloaded.error
-        ? `Cloudinary không trả được file: ${downloaded.error.message}`
+        ? `Nơi lưu trữ không trả được file: ${downloaded.error.message}`
         : 'Không tìm thấy đường dẫn file trong nơi lưu trữ.',
       code: 'STORAGE_DOWNLOAD_FAILED',
     })
@@ -1403,6 +1580,15 @@ app.post('/api/setup-document-assignees', requireUser, async (req, res) => {
          <p>Vui lòng kiểm tra hộp thư để tìm email có liên kết kích hoạt/đăng ký tài khoản và truy cập hệ thống để xem chi tiết.</p>`
       )
     }
+  }
+
+  try {
+    await syncDocumentDriveShortcuts(documentId)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`Unable to synchronize Google Drive folders for document ${documentId}:`, message)
+    res.status(400).json({ error: `Đã lưu phân công nhưng chưa đồng bộ được thư mục Google Drive: ${message}` })
+    return
   }
 
   res.json({ ok: true })
