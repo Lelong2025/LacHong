@@ -458,6 +458,141 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true })
 })
 
+const freeSupabaseDatabaseLimitBytes = 500 * 1024 * 1024
+const resourceUsageCacheMs = 5 * 60 * 1000
+
+type UsageValue = {
+  usedBytes: number
+  limitBytes: number
+  remainingBytes: number
+  percent: number
+  note?: string
+  creditDetails?: {
+    used: number
+    limit: number
+    remaining: number
+    storageUsedBytes: number
+    maxAdditionalStorageBytes: number
+  }
+}
+
+type ResourceUsagePayload = {
+  supabase: UsageValue | { error: string }
+  cloudinary: UsageValue | { error: string }
+  updatedAt: string
+}
+
+let resourceUsageCache: { expiresAt: number; payload: ResourceUsagePayload } | null = null
+
+function toUsageValue(usedBytes: number, limitBytes: number, note?: string): UsageValue {
+  const safeUsed = Math.max(0, usedBytes)
+  const safeLimit = Math.max(0, limitBytes)
+  return {
+    usedBytes: safeUsed,
+    limitBytes: safeLimit,
+    remainingBytes: Math.max(0, safeLimit - safeUsed),
+    percent: safeLimit > 0 ? (safeUsed / safeLimit) * 100 : 0,
+    ...(note ? { note } : {}),
+  }
+}
+
+app.get('/api/resource-usage', requireUser, async (req, res) => {
+  const currentUser = (req as AuthedRequest).user
+  if (!currentUser) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', currentUser.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    res.status(403).json({ error: 'Forbidden' })
+    return
+  }
+
+  // Cache on the backend only so a browser never keeps a stale error response.
+  res.setHeader('Cache-Control', 'private, no-store')
+  if (resourceUsageCache && resourceUsageCache.expiresAt > Date.now()) {
+    res.json(resourceUsageCache.payload)
+    return
+  }
+
+  const [databaseResult, cloudinaryResult] = await Promise.allSettled([
+    supabase.rpc('admin_database_size_bytes'),
+    cloudinary.api.usage(),
+  ])
+
+  let databaseUsage: ResourceUsagePayload['supabase']
+  if (databaseResult.status === 'fulfilled' && !databaseResult.value.error) {
+    const usedBytes = Number(databaseResult.value.data)
+    databaseUsage = Number.isFinite(usedBytes)
+      ? toUsageValue(usedBytes, freeSupabaseDatabaseLimitBytes)
+      : { error: 'Không đọc được dung lượng database.' }
+  } else {
+    const reason = databaseResult.status === 'rejected'
+      ? databaseResult.reason
+      : databaseResult.value.error
+    console.error('Unable to load Supabase database usage:', reason)
+    databaseUsage = { error: 'Không đọc được dung lượng database.' }
+  }
+
+  let cloudinaryUsage: ResourceUsagePayload['cloudinary']
+  if (cloudinaryResult.status === 'fulfilled') {
+    const usageResponse = cloudinaryResult.value as {
+      storage?: { usage?: number; limit?: number }
+      credits?: { usage?: number; limit?: number }
+    }
+    const storageUsedBytes = Number(usageResponse.storage?.usage)
+    const reportedLimit = Number(usageResponse.storage?.limit)
+    const configuredLimit = Number(process.env.CLOUDINARY_STORAGE_LIMIT_BYTES)
+    const creditUsage = Number(usageResponse.credits?.usage)
+    const creditLimit = Number(usageResponse.credits?.limit)
+
+    if (Number.isFinite(storageUsedBytes) && Number.isFinite(reportedLimit) && reportedLimit > 0) {
+      cloudinaryUsage = toUsageValue(storageUsedBytes, reportedLimit)
+    } else if (Number.isFinite(creditUsage) && Number.isFinite(creditLimit) && creditLimit > 0) {
+      // Cloudinary Free/self-service plans share credits between storage,
+      // transformations and bandwidth. One credit is equivalent to 1 GB of storage.
+      const safeCreditUsage = Math.max(0, creditUsage)
+      const remainingCredits = Math.max(0, creditLimit - safeCreditUsage)
+      const bytesPerCredit = 1024 * 1024 * 1024
+      cloudinaryUsage = {
+        ...toUsageValue(safeCreditUsage * bytesPerCredit, creditLimit * bytesPerCredit),
+        creditDetails: {
+          used: safeCreditUsage,
+          limit: creditLimit,
+          remaining: remainingCredits,
+          storageUsedBytes: Math.max(0, storageUsedBytes),
+          maxAdditionalStorageBytes: remainingCredits * bytesPerCredit,
+        },
+      }
+    } else if (Number.isFinite(storageUsedBytes) && Number.isFinite(configuredLimit) && configuredLimit > 0) {
+      cloudinaryUsage = toUsageValue(storageUsedBytes, configuredLimit)
+    } else {
+      cloudinaryUsage = { error: 'Cloudinary không trả về giới hạn lưu trữ.' }
+    }
+  } else {
+    console.error('Unable to load Cloudinary usage:', cloudinaryResult.reason)
+    cloudinaryUsage = { error: 'Không đọc được dung lượng Cloudinary.' }
+  }
+
+  const payload: ResourceUsagePayload = {
+    supabase: databaseUsage,
+    cloudinary: cloudinaryUsage,
+    updatedAt: new Date().toISOString(),
+  }
+  const hasErrors = 'error' in databaseUsage || 'error' in cloudinaryUsage
+  resourceUsageCache = {
+    expiresAt: Date.now() + (hasErrors ? 15 * 1000 : resourceUsageCacheMs),
+    payload,
+  }
+  res.json(payload)
+})
+
 app.post('/api/invite-user', requireUser, async (req, res) => {
   const email = String(req.body?.email ?? '').trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
