@@ -4,6 +4,7 @@
   grid-template-columns: 260px 1fr
 }
 
+/* test */
 .sidebar {
   background: #fff;
   border-right: 1px solid var(--line);
