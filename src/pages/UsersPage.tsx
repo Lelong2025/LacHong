@@ -1,4 +1,4 @@
-import { LockKeyhole, MoreVertical, Search, ShieldCheck, SlidersHorizontal } from 'lucide-react'
+import { Check, ChevronDown, LockKeyhole, MoreVertical, Search, ShieldCheck, SlidersHorizontal } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DataViewToggle, type DataViewMode } from '../components/DataViewToggle'
 import { supabase } from '../lib/supabase'
@@ -12,6 +12,7 @@ export function UsersPage() {
   const [error, setError] = useState('')
   const [viewMode, setViewMode] = useState<DataViewMode>('table')
   const [showFilters, setShowFilters] = useState(false)
+  const [openFilterMenu, setOpenFilterMenu] = useState<'role' | 'status' | null>(null)
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const forceGrid = useMediaQuery('(max-width: 760px)')
@@ -88,16 +89,44 @@ export function UsersPage() {
         </div>
         {showFilters && (
           <div className="users-filter-panel">
-            <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)} aria-label="Lọc theo vai trò">
-              <option value="">Tất cả vai trò</option>
-              <option value="admin">Admin</option>
-              <option value="client">Client</option>
-            </select>
-            <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} aria-label="Lọc theo trạng thái">
-              <option value="">Tất cả trạng thái</option>
-              <option value="active">Đang hoạt động</option>
-              <option value="locked">Đã khóa</option>
-            </select>
+            <div className="users-combobox">
+              <button type="button" onClick={() => setOpenFilterMenu(current => current === 'role' ? null : 'role')} aria-expanded={openFilterMenu === 'role'}>
+                {roleFilter === 'admin' ? 'Admin' : roleFilter === 'client' ? 'Client' : 'Tất cả vai trò'}
+                <ChevronDown />
+              </button>
+              {openFilterMenu === 'role' && (
+                <div className="users-combobox-menu">
+                  {[
+                    { value: '', label: 'Tất cả vai trò' },
+                    { value: 'admin', label: 'Admin' },
+                    { value: 'client', label: 'Client' },
+                  ].map(option => (
+                    <button type="button" key={option.value || 'all'} onClick={() => { setRoleFilter(option.value); setOpenFilterMenu(null) }}>
+                      {option.label}{roleFilter === option.value && <Check />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="users-combobox">
+              <button type="button" onClick={() => setOpenFilterMenu(current => current === 'status' ? null : 'status')} aria-expanded={openFilterMenu === 'status'}>
+                {statusFilter === 'active' ? 'Đang hoạt động' : statusFilter === 'locked' ? 'Đã khóa' : 'Tất cả trạng thái'}
+                <ChevronDown />
+              </button>
+              {openFilterMenu === 'status' && (
+                <div className="users-combobox-menu">
+                  {[
+                    { value: '', label: 'Tất cả trạng thái' },
+                    { value: 'active', label: 'Đang hoạt động' },
+                    { value: 'locked', label: 'Đã khóa' },
+                  ].map(option => (
+                    <button type="button" key={option.value || 'all'} onClick={() => { setStatusFilter(option.value); setOpenFilterMenu(null) }}>
+                      {option.label}{statusFilter === option.value && <Check />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>

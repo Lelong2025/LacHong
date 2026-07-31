@@ -951,8 +951,72 @@ td small {
   box-shadow: 0 10px 30px rgba(15, 23, 42, .14)
 }
 
-.users-filter-panel select {
-  min-width: 145px
+.users-combobox {
+  position: relative;
+  min-width: 160px
+}
+
+.users-combobox > button {
+  width: 100%;
+  min-height: 40px;
+  justify-content: space-between;
+  padding: .55rem .7rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: .55rem;
+  font-weight: 500
+}
+
+.users-combobox > button svg {
+  width: 16px;
+  height: 16px;
+  transition: transform .2s
+}
+
+.users-combobox > button[aria-expanded='true'] {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(30, 95, 168, .1)
+}
+
+.users-combobox > button[aria-expanded='true'] svg {
+  transform: rotate(180deg)
+}
+
+.users-combobox-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + .4rem);
+  left: 0;
+  width: 100%;
+  padding: .35rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .16)
+}
+
+.users-combobox-menu button {
+  width: 100%;
+  min-height: 36px;
+  justify-content: space-between;
+  padding: .5rem .6rem;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: .4rem;
+  font-weight: 500
+}
+
+.users-combobox-menu button:hover {
+  color: var(--blue);
+  background: #edf4ff
+}
+
+.users-combobox-menu button svg {
+  width: 15px;
+  height: 15px;
+  color: var(--blue)
 }
 
 .user-identity {
@@ -1052,6 +1116,18 @@ td small {
   border: 0
 }
 
+.users-table-card tbody tr:nth-child(odd) td {
+  background: #f7f9fc
+}
+
+.users-table-card tbody tr:nth-child(even) td {
+  background: #fff
+}
+
+.users-table-card tbody tr:hover td {
+  background: #eef4ff
+}
+
 @media (max-width: 760px) {
   .users-toolbar,
   .users-toolbar-actions {
@@ -1073,6 +1149,10 @@ td small {
     width: 100%;
     flex-direction: column;
     box-shadow: none
+  }
+
+  .users-combobox {
+    width: 100%
   }
 }
 
