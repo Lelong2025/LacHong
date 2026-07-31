@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { EmptyState } from '../components/EmptyState'
 import { DataViewToggle, type DataViewMode } from '../components/DataViewToggle'
+import { CustomSelect } from '../components/CustomSelect'
 import { supabase } from '../lib/supabase'
 import { emitSessionExpired } from '../lib/sessionExpiry'
 import { useMediaQuery } from '../hooks/useMediaQuery'
@@ -221,10 +222,13 @@ export function StatisticsPage() {
       {error && <p className="error">{error}</p>}
       <section className="toolbar chart-filter">
         <span>Thống kê theo năm</span>
-        <select value={yearFilter} onChange={(event) => setYearFilter(event.target.value)}>
-          <option value="">Tất cả năm</option>
-          {availableYears.map(year => <option key={year} value={year}>{year}</option>)}
-        </select>
+        <CustomSelect
+          className="year-combobox"
+          value={yearFilter}
+          onChange={setYearFilter}
+          ariaLabel="Thống kê theo năm"
+          options={[{ value: '', label: 'Tất cả năm' }, ...availableYears.map(year => ({ value: String(year), label: String(year) }))]}
+        />
       </section>
 
       {/* Cards theo loại hồ sơ */}

@@ -6,6 +6,7 @@ import { useNotifier } from '../contexts/useNotifier'
 import { EmptyState } from '../components/EmptyState'
 import { ListFileDoc } from '../components/ListFileDoc'
 import { DataViewToggle, type DataViewMode } from '../components/DataViewToggle'
+import { CustomSelect } from '../components/CustomSelect'
 import { supabase } from '../lib/supabase'
 import { emitSessionExpired } from '../lib/sessionExpiry'
 import { useMediaQuery } from '../hooks/useMediaQuery'
@@ -687,10 +688,13 @@ export function DocumentsPage() {
           </button>
         )}
         <DataViewToggle value={viewMode} onChange={setViewMode} forceGrid={forceGrid} />
-        <select value={yearFilter} onChange={(event) => setYearFilter(event.target.value)} aria-label="Lọc theo năm">
-          <option value="">Tất cả năm</option>
-          {availableYears.map(year => <option key={year} value={year}>{year}</option>)}
-        </select>
+        <CustomSelect
+          className="year-combobox"
+          value={yearFilter}
+          onChange={setYearFilter}
+          ariaLabel="Lọc theo năm"
+          options={[{ value: '', label: 'Tất cả năm' }, ...availableYears.map(year => ({ value: String(year), label: String(year) }))]}
+        />
         <span>{filteredItems.length} hồ sơ</span>
       </section>
       {error && <p className="error">{error}</p>}
@@ -840,11 +844,13 @@ export function DocumentsPage() {
                 <div className="form-right-col">
                   <label className="form-group" style={{ marginBottom: '12px' }}>
                     Loại hồ sơ
-                    <select name="type" defaultValue={typeSelectDefault} required>
-                      {Object.entries(documentTypeLabels).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
+                    <CustomSelect
+                      key={typeSelectDefault}
+                      name="type"
+                      defaultValue={typeSelectDefault}
+                      ariaLabel="Loại hồ sơ"
+                      options={Object.entries(documentTypeLabels).map(([value, label]) => ({ value, label }))}
+                    />
                   </label>
                   <div className="row-flex">
                     <label className="form-group assignee-field-custom">
