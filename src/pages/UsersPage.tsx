@@ -75,8 +75,14 @@ export function UsersPage() {
         </label>
         <div className="users-toolbar-actions">
           <DataViewToggle value={viewMode} onChange={setViewMode} forceGrid={forceGrid} />
-          <button type="button" className={`users-filter-button ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters(current => !current)}>
-            <SlidersHorizontal /> Bộ lọc
+          <button
+            type="button"
+            className={`users-filter-button ${showFilters ? 'active' : ''}`}
+            onClick={() => setShowFilters(current => !current)}
+            aria-label="Bộ lọc người dùng"
+            title="Bộ lọc"
+          >
+            <SlidersHorizontal />
           </button>
           <span>{filteredItems.length} người dùng</span>
         </div>
@@ -96,7 +102,7 @@ export function UsersPage() {
         )}
       </section>
       {error && <p className="error">{error}</p>}
-      <section className={`table-card data-view-card ${forceGrid || viewMode === 'grid' ? 'is-grid-view' : 'is-table-view'}`}>
+      <section className={`table-card data-view-card users-table-card ${forceGrid || viewMode === 'grid' ? 'is-grid-view' : 'is-table-view'}`}>
         <table>
           <thead>
             <tr>

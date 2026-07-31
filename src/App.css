@@ -914,8 +914,12 @@ td small {
 }
 
 .users-filter-button {
+  width: 42px;
+  height: 38px;
   min-height: 38px;
-  padding: .55rem .85rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
   background: #fff;
   color: var(--text);
   border: 1px solid var(--line);
@@ -1041,6 +1045,11 @@ td small {
 .user-more-button svg {
   width: 18px;
   height: 18px
+}
+
+.users-table-card table th,
+.users-table-card table td {
+  border: 0
 }
 
 @media (max-width: 760px) {
