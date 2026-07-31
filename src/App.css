@@ -889,6 +889,184 @@ td small {
   color: #6f4aa4
 }
 
+.users-toolbar {
+  position: relative;
+  padding: .7rem .85rem;
+  margin-bottom: 1.1rem
+}
+
+.users-toolbar > label {
+  max-width: 620px;
+  background: #f6f8fb;
+  border: 0
+}
+
+.users-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  margin-left: auto
+}
+
+.users-toolbar-actions > span {
+  white-space: nowrap;
+  font-size: .86rem
+}
+
+.users-filter-button {
+  min-height: 38px;
+  padding: .55rem .85rem;
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: .55rem
+}
+
+.users-filter-button svg {
+  width: 16px;
+  height: 16px
+}
+
+.users-filter-button.active {
+  color: var(--blue);
+  border-color: var(--blue);
+  background: #f5f9ff
+}
+
+.users-filter-panel {
+  position: absolute;
+  z-index: 10;
+  right: 6.5rem;
+  top: calc(100% + .4rem);
+  display: flex;
+  gap: .55rem;
+  padding: .7rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: .65rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, .14)
+}
+
+.users-filter-panel select {
+  min-width: 145px
+}
+
+.user-identity {
+  display: flex;
+  align-items: center;
+  gap: .8rem
+}
+
+.user-identity > span:last-child {
+  min-width: 0
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  border-radius: .55rem;
+  background: #dfe9fb;
+  color: #1559a0;
+  font-size: .75rem;
+  font-weight: 800
+}
+
+.user-role,
+.user-state {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  text-transform: uppercase;
+  font-size: .64rem;
+  line-height: 1;
+  white-space: nowrap
+}
+
+.user-role {
+  padding: .28rem .55rem;
+  background: #e6e9ee;
+  color: #344054
+}
+
+.user-role.admin {
+  background: #101828;
+  color: #fff
+}
+
+.user-state {
+  gap: .35rem;
+  padding: .35rem .6rem;
+  background: #ecfdf3;
+  color: #16834b
+}
+
+.user-state.locked {
+  background: #fff1f2;
+  color: #c2414f
+}
+
+.user-state i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor
+}
+
+.user-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: .4rem
+}
+
+.user-actions .text-button {
+  background: #fff7f7;
+  padding: .5rem .65rem
+}
+
+.user-more-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--text);
+  border: 0
+}
+
+.user-more-button svg {
+  width: 18px;
+  height: 18px
+}
+
+@media (max-width: 760px) {
+  .users-toolbar,
+  .users-toolbar-actions {
+    align-items: stretch
+  }
+
+  .users-toolbar-actions {
+    width: 100%;
+    margin-left: 0
+  }
+
+  .users-toolbar-actions > span {
+    margin-left: auto;
+    align-self: center
+  }
+
+  .users-filter-panel {
+    position: static;
+    width: 100%;
+    flex-direction: column;
+    box-shadow: none
+  }
+}
+
 .row-actions {
   display: flex;
   align-items: center;
