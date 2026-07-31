@@ -846,7 +846,7 @@ td small {
   gap: .12rem
 }
 
-.metric-card .metric-copy > span {
+.metric-card .metric-copy>span {
   color: #111827;
   font-size: .78rem;
   font-weight: 600;
@@ -895,7 +895,7 @@ td small {
   margin-bottom: 1.1rem
 }
 
-.users-toolbar > label {
+.users-toolbar>label {
   max-width: 620px;
   background: #f6f8fb;
   border: 0
@@ -908,7 +908,7 @@ td small {
   margin-left: auto
 }
 
-.users-toolbar-actions > span {
+.users-toolbar-actions>span {
   white-space: nowrap;
   font-size: .86rem
 }
@@ -956,7 +956,7 @@ td small {
   min-width: 160px
 }
 
-.users-combobox > button {
+.users-combobox>button {
   width: 100%;
   min-height: 40px;
   display: flex;
@@ -972,19 +972,19 @@ td small {
   font-weight: 500
 }
 
-.users-combobox > button svg {
+.users-combobox>button svg {
   width: 16px;
   height: 16px;
   flex: 0 0 16px;
   transition: transform .2s
 }
 
-.users-combobox > button[aria-expanded='true'] {
+.users-combobox>button[aria-expanded='true'] {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(30, 95, 168, .1)
 }
 
-.users-combobox > button[aria-expanded='true'] svg {
+.users-combobox>button[aria-expanded='true'] svg {
   transform: rotate(180deg)
 }
 
@@ -1036,7 +1036,7 @@ td small {
   min-width: 150px
 }
 
-.app-combobox > button,
+.app-combobox>button,
 .app-combobox-menu button {
   width: 100%;
   display: flex;
@@ -1046,7 +1046,7 @@ td small {
   gap: .65rem
 }
 
-.app-combobox > button {
+.app-combobox>button {
   min-height: 42px;
   padding: .55rem .75rem;
   color: var(--text);
@@ -1056,25 +1056,25 @@ td small {
   font-weight: 500
 }
 
-.app-combobox > button span {
+.app-combobox>button span {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis
 }
 
-.app-combobox > button svg {
+.app-combobox>button svg {
   width: 16px;
   height: 16px;
   flex: 0 0 16px;
   transition: transform .2s
 }
 
-.app-combobox > button[aria-expanded='true'] {
+.app-combobox>button[aria-expanded='true'] {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(30, 95, 168, .1)
 }
 
-.app-combobox > button[aria-expanded='true'] svg {
+.app-combobox>button[aria-expanded='true'] svg {
   transform: rotate(180deg)
 }
 
@@ -1128,7 +1128,7 @@ td small {
   gap: .8rem
 }
 
-.user-identity > span:last-child {
+.user-identity>span:last-child {
   min-width: 0
 }
 
@@ -1232,6 +1232,7 @@ td small {
 }
 
 @media (max-width: 760px) {
+
   .users-toolbar,
   .users-toolbar-actions {
     align-items: stretch
@@ -1242,7 +1243,7 @@ td small {
     margin-left: 0
   }
 
-  .users-toolbar-actions > span {
+  .users-toolbar-actions>span {
     margin-left: auto;
     align-self: center
   }
