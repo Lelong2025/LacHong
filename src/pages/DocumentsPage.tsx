@@ -645,9 +645,11 @@ export function DocumentsPage() {
           onClick={() => setTypeFilter('')}
           style={{ cursor: 'pointer', border: !typeFilter ? '1px solid var(--blue)' : '1px solid var(--line)' }}
         >
-          <FolderOpen style={{ color: 'var(--blue)' }} />
-          <span>Tất cả hồ sơ</span>
-          <b>{allDocs.length}</b>
+          <span className="metric-icon"><FolderOpen /></span>
+          <span className="metric-copy">
+            <span>Tất cả hồ sơ</span>
+            <b>{allDocs.length}</b>
+          </span>
         </article>
         {typeList.map(({ key, label, icon: Icon }) => {
           const count = typeCounts[key] ?? 0
@@ -663,9 +665,11 @@ export function DocumentsPage() {
                 border: isActive ? '1px solid var(--blue)' : '1px solid var(--line)'
               }}
             >
-              <Icon style={isActive ? { color: 'var(--blue)' } : {}} />
-              <span>{label}</span>
-              <b>{count}</b>
+              <span className="metric-icon"><Icon /></span>
+              <span className="metric-copy">
+                <span>{label}</span>
+                <b>{count}</b>
+              </span>
             </article>
           )
         })}

@@ -803,42 +803,90 @@ td small {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-  gap: .7rem;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: .75rem;
   margin-bottom: 1.25rem
 }
 
 .metric-card {
   background: #fff;
-  border: 2px solid #111827;
-  border-radius: .35rem;
-  padding: .62rem .75rem;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  border: 1px solid #e6e9ef;
+  border-radius: .7rem;
+  padding: .72rem .8rem;
+  display: flex;
   align-items: center;
-  gap: .55rem;
-  min-height: 56px
+  gap: .7rem;
+  min-height: 66px;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, .08);
+  transition: border-color .2s, box-shadow .2s, transform .2s
 }
 
-.metric-card svg {
-  width: 23px;
-  height: 23px;
-  color: #111827
+.metric-card .metric-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: .5rem;
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  background: #dff3fb;
+  color: #2287ad
 }
 
-.metric-card span {
+.metric-card .metric-icon svg {
+  width: 21px;
+  height: 21px;
+  color: currentColor
+}
+
+.metric-card .metric-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .12rem
+}
+
+.metric-card .metric-copy > span {
   color: #111827;
-  font-size: .9rem;
+  font-size: .78rem;
+  font-weight: 600;
   line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis
+  text-overflow: ellipsis;
+  max-width: 100%
 }
 
-.metric-card b {
-  font-size: 1.35rem;
+.metric-card .metric-copy b {
+  font-size: 1rem;
+  line-height: 1.15;
   color: #111827;
-  text-align: right
+  text-align: left
+}
+
+.metric-grid .metric-card:nth-child(6n + 2) .metric-icon {
+  background: #fff0dc;
+  color: #b96f24
+}
+
+.metric-grid .metric-card:nth-child(6n + 3) .metric-icon {
+  background: #dcf5eb;
+  color: #299b76
+}
+
+.metric-grid .metric-card:nth-child(6n + 4) .metric-icon {
+  background: #e8eafa;
+  color: #5866aa
+}
+
+.metric-grid .metric-card:nth-child(6n + 5) .metric-icon {
+  background: #e8edf2;
+  color: #667383
+}
+
+.metric-grid .metric-card:nth-child(6n + 6) .metric-icon {
+  background: #eee4fa;
+  color: #6f4aa4
 }
 
 .row-actions {

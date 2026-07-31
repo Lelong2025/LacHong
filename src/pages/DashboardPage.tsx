@@ -270,20 +270,26 @@ export function DashboardPage() {
       {/* === CHỈ SỐ TỔNG QUAN — MỘT HÀNG === */}
       <section className="metric-grid dashboard-metrics-row" style={{ marginBottom: '1.25rem' }}>
         <article className="metric-card dashboard-metric-card active">
-          <FileText />
-          <span>Tổng hồ sơ</span>
-          <b>{scopedDocuments.length}</b>
+          <span className="metric-icon"><FileText /></span>
+          <span className="metric-copy">
+            <span>Tổng hồ sơ</span>
+            <b>{scopedDocuments.length}</b>
+          </span>
         </article>
         <article className="metric-card dashboard-metric-card">
-          <Archive />
-          <span>Tổng lưu trữ</span>
-          <b>{totalArchived}</b>
+          <span className="metric-icon"><Archive /></span>
+          <span className="metric-copy">
+            <span>Tổng lưu trữ</span>
+            <b>{totalArchived}</b>
+          </span>
         </article>
         {metricStats.map(({ key, label, icon: Icon, total }) => (
           <article className="metric-card dashboard-metric-card" key={key} style={total === 0 ? { opacity: 0.5 } : {}}>
-            <Icon />
-            <span>{label}</span>
-            <b>{total}</b>
+            <span className="metric-icon"><Icon /></span>
+            <span className="metric-copy">
+              <span>{label}</span>
+              <b>{total}</b>
+            </span>
           </article>
         ))}
       </section>

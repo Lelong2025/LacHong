@@ -234,9 +234,11 @@ export function StatisticsPage() {
           const active = typeFilter === key
           return (
             <article className={`metric-card clickable ${active ? 'active' : ''}`} key={key} onClick={() => setTypeFilter(active ? '' : key)} style={count === 0 && !active ? { opacity: 0.5, cursor: 'pointer' } : { cursor: 'pointer' }}>
-              <Icon />
-              <span>{label}</span>
-              <b>{count}</b>
+              <span className="metric-icon"><Icon /></span>
+              <span className="metric-copy">
+                <span>{label}</span>
+                <b>{count}</b>
+              </span>
             </article>
           )
         })}
