@@ -55,16 +55,18 @@ function UsageBar({
   icon,
   value,
   loading,
+  kind,
 }: {
   label: string
   icon: ReactNode
   value?: UsageSource
   loading: boolean
+  kind: 'database' | 'drive'
 }) {
   if (loading && !value) {
     return (
-      <article className="resource-usage-card is-loading">
-        <div className="resource-usage-heading">{icon}<b>{label}</b></div>
+      <article className={`resource-usage-card ${kind} is-loading`}>
+        <div className="resource-usage-heading"><span className="resource-usage-icon">{icon}</span><b>{label}</b></div>
         <div className="resource-usage-skeleton" />
         <small>Đang cập nhật...</small>
       </article>
@@ -73,8 +75,8 @@ function UsageBar({
 
   if (!value || !hasUsage(value)) {
     return (
-      <article className="resource-usage-card has-error">
-        <div className="resource-usage-heading">{icon}<b>{label}</b></div>
+      <article className={`resource-usage-card ${kind} has-error`}>
+        <div className="resource-usage-heading"><span className="resource-usage-icon">{icon}</span><b>{label}</b></div>
         <small>Chưa lấy được dung lượng</small>
       </article>
     )
@@ -86,11 +88,11 @@ function UsageBar({
   const displayLabel = credits ? 'Cloudinary Credits' : label
 
   return (
-    <article className="resource-usage-card">
+    <article className={`resource-usage-card ${kind}`}>
       <div className="resource-usage-heading">
-        {icon}
+        <span className="resource-usage-icon">{icon}</span>
         <b>{displayLabel}</b>
-        <span>{percent.toFixed(percent >= 10 ? 0 : 1)}%</span>
+        <span className={`resource-usage-percent ${level}`}>{percent.toFixed(percent >= 10 ? 0 : 1)}%</span>
       </div>
       <div
         className="resource-usage-track"
@@ -181,8 +183,8 @@ export function ResourceUsage() {
           <RefreshCw className={refreshing ? 'is-spinning' : ''} />
         </button>
       </div>
-      <UsageBar label="Supabase Database" icon={<Database />} value={usage?.supabase} loading={loading} />
-      <UsageBar label="Google Drive" icon={<HardDrive />} value={usage?.googleDrive} loading={loading} />
+      <UsageBar kind="database" label="Supabase Database" icon={<Database />} value={usage?.supabase} loading={loading} />
+      <UsageBar kind="drive" label="Google Drive" icon={<HardDrive />} value={usage?.googleDrive} loading={loading} />
     </section>
   )
 }

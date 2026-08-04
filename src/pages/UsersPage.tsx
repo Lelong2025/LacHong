@@ -155,14 +155,16 @@ export function UsersPage() {
                 </td>
                 <td><span className={`user-role ${profile.role}`}>{profile.role}</span></td>
                 <td><span className={`user-state ${profile.is_active ? 'active' : 'locked'}`}><i />{profile.is_active ? 'Đang hoạt động' : 'Đã khóa'}</span></td>
-                <td className="user-actions">
-                  {profile.role === 'client' && (
-                    <button className={profile.is_active ? 'danger-icon text-button' : 'primary compact'} onClick={() => toggleActive(profile)}>
-                      {profile.is_active ? <LockKeyhole /> : <ShieldCheck />}
-                      {profile.is_active ? 'Khóa' : 'Mở khóa'}
-                    </button>
-                  )}
-                  <button type="button" className="user-more-button" aria-label={`Thêm thao tác cho ${profile.full_name || profile.email}`}><MoreVertical /></button>
+                <td className="user-actions-cell">
+                  <div className="user-actions">
+                    {profile.role === 'client' && (
+                      <button className={profile.is_active ? 'danger-icon text-button' : 'primary compact'} onClick={() => toggleActive(profile)}>
+                        {profile.is_active ? <LockKeyhole /> : <ShieldCheck />}
+                        {profile.is_active ? 'Khóa' : 'Mở khóa'}
+                      </button>
+                    )}
+                    <button type="button" className="user-more-button" aria-label={`Thêm thao tác cho ${profile.full_name || profile.email}`}><MoreVertical /></button>
+                  </div>
                 </td>
               </tr>
             ))}

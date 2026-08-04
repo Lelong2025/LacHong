@@ -98,79 +98,150 @@
 
 .form-container h1 {
   font-family: 'Impact', 'Barlow Condensed', sans-serif;
-  font-size: 68px;
+  font-size: 58px;
   color: #10528e;
-  margin-bottom: 25px;
-  letter-spacing: 0.5px;
+  margin: 0 0 24px;
+  letter-spacing: 1.5px;
   font-weight: normal;
+  line-height: 1;
+  text-shadow: 0 4px 14px rgba(16, 82, 142, .12);
 }
 
 /* --- Ô Nhập Liệu (Inputs) nét mảnh chuẩn đét --- */
 .input-box {
   position: relative;
-  margin-bottom: 16px;
+  min-height: 50px;
+  margin-bottom: 14px;
   display: flex;
   align-items: center;
-  border: 1px solid #1c1c1c;
-  border-radius: 30px;
-  padding: 12px 22px;
-  background: #ffffff;
+  gap: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  padding: 0 16px;
+  background: #f8fafc;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .05);
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+.input-box:focus-within {
+  background: #fff;
+  border-color: #2875b7;
+  box-shadow: 0 0 0 4px rgba(16, 82, 142, .11), 0 5px 14px rgba(15, 23, 42, .08);
 }
 
 .input-box i {
-  color: #000000;
+  color: #4b6f91;
   font-size: 16px;
-  width: 25px;
-  text-align: left;
+  width: 20px;
+  flex: 0 0 20px;
+  text-align: center;
 }
 
 .input-box input {
   border: none;
   outline: none;
   width: 100%;
+  min-width: 0;
+  padding: 13px 0;
+  background: transparent;
+  font: inherit;
   font-size: 14px;
-  color: #222222;
+  color: #172033;
 }
 
 .input-box input::placeholder {
-  color: #7a7a7a;
+  color: #8491a3;
 }
 
-.fa-eye, .fa-eye-slash {
-  cursor: pointer;
+.input-box:has(.password-toggle) input {
+  padding-right: 42px;
+}
+
+.input-box input:-webkit-autofill,
+.input-box input:-webkit-autofill:hover,
+.input-box input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #172033;
+  box-shadow: 0 0 0 1000px #f8fafc inset;
+  transition: background-color 9999s ease-out;
+}
+
+.password-toggle {
   position: absolute;
-  right: 22px;
-  color: #7a7a7a;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: color .2s ease, background .2s ease;
 }
 
-.fa-eye:hover, .fa-eye-slash:hover {
+.password-toggle svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 2;
+}
+
+.password-toggle:hover {
   color: #10528e;
+  background: rgba(16, 82, 142, .08);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid #2875b7;
+  outline-offset: 1px;
+}
+
+.password-toggle:disabled {
+  cursor: not-allowed;
+  opacity: .5;
 }
 
 /* --- Các Nút Bấm (Buttons) --- */
 .btn {
   width: 100%;
-  padding: 13px;
+  min-height: 50px;
+  padding: 12px 18px;
   border: none;
-  border-radius: 30px;
+  border-radius: 14px;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   color: #ffffff;
-  transition: opacity 0.2s ease;
+  box-shadow: 0 7px 16px rgba(15, 23, 42, .12);
+  transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
 }
 
 .btn:hover {
-  opacity: 0.92;
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, .16);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+  transform: none;
 }
 
 .btn-signin {
-  background-color: #10528e;
-  margin-top: 10px;
+  background: linear-gradient(135deg, #0e4c83, #1769ad);
+  margin-top: 4px;
 }
 
 .btn-signup {
-  background-color: #ffb853; 
+  background: linear-gradient(135deg, #f6a93e, #ffc467);
+  color: #51310a;
 }
 
 .forgot-password-link {
@@ -179,7 +250,7 @@
   color: #10528e;
   font-size: 13px;
   font-weight: 600;
-  margin-top: 10px;
+  margin-top: 8px;
   padding: 4px 8px;
 }
 
@@ -188,7 +259,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: -4px 0 14px;
+  margin: 0 0 14px;
   color: #4b5563;
   font-size: 0.88rem;
   font-weight: 600;
@@ -196,8 +267,8 @@
 }
 
 .remember-row input {
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
   accent-color: #164877;
   cursor: pointer;
 }
@@ -215,8 +286,8 @@
   display: flex;
   align-items: center;
   text-align: center;
-  margin: 18px 0;
-  color: #666666;
+  margin: 16px 0;
+  color: #7b8797;
   font-size: 14px;
   font-weight: 500;
 }
@@ -225,7 +296,7 @@
 .or-divider::after {
   content: '';
   flex: 1;
-  border-bottom: 1.5px solid #666666;
+  border-bottom: 1px solid #cbd5e1;
 }
 
 .or-divider span {
@@ -298,12 +369,28 @@
 }
 
 :root[data-theme='dark'] .input-box {
-  background: #333333;
-  border-color: #555555;
+  background: #2d2d2d;
+  border-color: #505050;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .2);
+}
+
+:root[data-theme='dark'] .input-box:focus-within {
+  background: #323232;
+  border-color: #82b9e9;
+  box-shadow: 0 0 0 4px rgba(125, 180, 255, .14);
 }
 
 :root[data-theme='dark'] .input-box i {
   color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .password-toggle {
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .password-toggle:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, .08);
 }
 
 :root[data-theme='dark'] .input-box input {
@@ -316,20 +403,27 @@
   color: #94a3b8;
 }
 
+:root[data-theme='dark'] .input-box input:-webkit-autofill,
+:root[data-theme='dark'] .input-box input:-webkit-autofill:hover,
+:root[data-theme='dark'] .input-box input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f8fafc;
+  box-shadow: 0 0 0 1000px #2d2d2d inset;
+}
+
 :root[data-theme='dark'] .or-divider::before,
 :root[data-theme='dark'] .or-divider::after {
   border-color: #475569;
 }
 
 :root[data-theme='dark'] .btn-signin {
-  background-color: #f5f5f5;
-  color: #212121;
+  background: linear-gradient(135deg, #eaf2ff, #cbdff5);
+  color: #172033;
 }
 
 :root[data-theme='dark'] .btn-signup {
-  background-color: #3a3a3a;
-  color: #f5f5f5;
-  border: 1px solid #555555;
+  background: linear-gradient(135deg, #f4aa45, #ffc66f);
+  color: #402706;
+  border: 0;
 }
 
 :root[data-theme='dark'] .forgot-password-link {

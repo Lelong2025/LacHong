@@ -237,7 +237,7 @@ export function StatisticsPage() {
           const count = yearScopedDocuments.filter(d => matchesFilter(d, key)).length
           const active = typeFilter === key
           return (
-            <article className={`metric-card clickable ${active ? 'active' : ''}`} key={key} onClick={() => setTypeFilter(active ? '' : key)} style={count === 0 && !active ? { opacity: 0.5, cursor: 'pointer' } : { cursor: 'pointer' }}>
+            <article className={`metric-card clickable${active ? ' active' : ''}${count === 0 && !active ? ' is-empty' : ''}`} key={key} onClick={() => setTypeFilter(active ? '' : key)} style={{ cursor: 'pointer' }}>
               <span className="metric-icon"><Icon /></span>
               <span className="metric-copy">
                 <span>{label}</span>

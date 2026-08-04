@@ -288,7 +288,7 @@ export function DashboardPage() {
           </span>
         </article>
         {metricStats.map(({ key, label, icon: Icon, total }) => (
-          <article className="metric-card dashboard-metric-card" key={key} style={total === 0 ? { opacity: 0.5 } : {}}>
+          <article className={`metric-card dashboard-metric-card${total === 0 ? ' is-empty' : ''}`} key={key}>
             <span className="metric-icon"><Icon /></span>
             <span className="metric-copy">
               <span>{label}</span>

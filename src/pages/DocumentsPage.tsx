@@ -644,7 +644,7 @@ export function DocumentsPage() {
         <article
           className={`metric-card clickable ${!typeFilter ? 'active' : ''}`}
           onClick={() => setTypeFilter('')}
-          style={{ cursor: 'pointer', border: !typeFilter ? '1px solid var(--blue)' : '1px solid var(--line)' }}
+          style={{ cursor: 'pointer' }}
         >
           <span className="metric-icon"><FolderOpen /></span>
           <span className="metric-copy">
@@ -657,14 +657,10 @@ export function DocumentsPage() {
           const isActive = typeFilter === key
           return (
             <article
-              className={`metric-card clickable ${isActive ? 'active' : ''}`}
+              className={`metric-card clickable${isActive ? ' active' : ''}${count === 0 && !isActive ? ' is-empty' : ''}`}
               key={key}
               onClick={() => setTypeFilter(key)}
-              style={{
-                cursor: 'pointer',
-                opacity: count === 0 && !isActive ? 0.45 : 1,
-                border: isActive ? '1px solid var(--blue)' : '1px solid var(--line)'
-              }}
+              style={{ cursor: 'pointer' }}
             >
               <span className="metric-icon"><Icon /></span>
               <span className="metric-copy">

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { Eye, EyeOff } from 'lucide-react'
 import { BookLoader } from '../components/BookLoader'
 import { ThemeSwitch } from '../components/ThemeSwitch'
 import { getRememberSession, setRememberSession, supabase } from '../lib/supabase'
@@ -318,10 +319,16 @@ export default function AuthPage({
                   required
                   disabled={isPendingTransition || registerLoading}
                 />
-                <i 
-                  className={`fa-regular ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} 
-                  onClick={() => !isPendingTransition && !registerLoading && setShowPassword(!showPassword)}
-                ></i>
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(current => !current)}
+                  disabled={isPendingTransition || registerLoading}
+                  aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                >
+                  {showPassword ? <EyeOff /> : <Eye />}
+                </button>
               </div>
 
               {isLogin && (
