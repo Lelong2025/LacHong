@@ -4546,3 +4546,121 @@ td small {
     overflow-wrap: anywhere;
   }
 }
+.word-file-preview {
+  width: min(794px, calc(100% - 32px));
+  min-height: 100%;
+  margin: 16px auto;
+  padding: 56px 64px;
+  box-sizing: border-box;
+  background: #fff;
+  color: #172033;
+  box-shadow: 0 2px 14px rgba(15, 23, 42, .12);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.word-file-preview img {
+  max-width: 100%;
+  height: auto;
+}
+
+.word-file-preview table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.word-file-preview td,
+.word-file-preview th {
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+}
+
+.file-preview-modal {
+  inset: 0;
+  padding: 0;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.file-preview-shell {
+  width: 100vw;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface, #fff);
+}
+
+.file-preview-shell .modal-form-header,
+.file-preview-shell .modal-form-footer {
+  flex: 0 0 auto;
+}
+
+.file-preview-shell .modal-form-header {
+  min-height: 44px;
+  padding: 6px 12px;
+}
+
+.file-preview-shell .modal-form-header h2 {
+  margin: 0;
+  font-size: .95rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-preview-shell .modal-form-header .btn-close {
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+}
+
+.file-preview-shell .modal-form-header .btn-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.file-preview-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #525659;
+}
+
+.file-preview-content iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.docx-file-preview {
+  min-height: 100%;
+}
+
+.docx-file-preview .docx-wrapper {
+  min-height: 100%;
+  padding: 24px;
+  background: #525659;
+}
+
+.docx-file-preview .docx-wrapper > section.docx-preview-page {
+  margin: 0 auto 24px;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, .32);
+}
+
+@media (max-width: 760px) {
+  .word-file-preview {
+    width: calc(100% - 16px);
+    margin: 8px auto;
+    padding: 28px 20px;
+  }
+
+  .docx-file-preview .docx-wrapper {
+    padding: 8px;
+    overflow-x: auto;
+  }
+
+}

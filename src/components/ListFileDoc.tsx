@@ -22,9 +22,10 @@ interface Props {
     onRemoveExistingFile?: (fileId: string) => void
     fileKind?: 'attachment' | 'issued_attachment'
     downloadFile?: (fileId: string) => Promise<void>
+    previewFile?: (fileId: string) => Promise<void>
 }
 
-export function ListFileDoc({ documentId, refreshKey = 0, pendingFiles = [], onRemoveExistingFile, fileKind, downloadFile }: Props) {
+export function ListFileDoc({ documentId, refreshKey = 0, pendingFiles = [], onRemoveExistingFile, fileKind, downloadFile, previewFile }: Props) {
     const { notify } = useNotifier()
     const [files, setFiles] = useState<DocFile[]>([])
     const [loading, setLoading] = useState(true)
@@ -104,9 +105,15 @@ export function ListFileDoc({ documentId, refreshKey = 0, pendingFiles = [], onR
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                         <FileText size={16} style={{ color: file.file_kind === 'issued_attachment' ? '#087b38' : 'var(--blue, #1e3a5f)', flexShrink: 0 }} />
-                        <span style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={file.name}>
+                        <button
+                            type="button"
+                            onClick={() => previewFile && void previewFile(file.id)}
+                            disabled={!previewFile}
+                            style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', border: 0, padding: 0, background: 'transparent', color: 'var(--blue, #1e3a5f)', cursor: previewFile ? 'pointer' : 'default', textDecoration: previewFile ? 'underline' : 'none', textUnderlineOffset: '3px', textAlign: 'left' }}
+                            title={previewFile ? `Xem ${file.name}` : file.name}
+                        >
                             {file.name || 'Unnamed'}
-                        </span>
+                        </button>
                         <span style={{
                             fontSize: '11px',
                             padding: '2px 6px',

@@ -1,5 +1,5 @@
 import { Eye, FilePlus2, Search, Trash2, UploadCloud, X, Send, Stamp, CheckCircle2, FileText, Clock3, Hash, FolderOpen, Download, Pencil } from 'lucide-react'
-import { useCallback, useEffect, useState, useMemo, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo, type FormEvent } from 'react'
 import * as XLSX from 'xlsx'
 import { useAuth } from '../contexts/AuthContext'
 import { useNotifier } from '../contexts/useNotifier'
@@ -100,6 +100,46 @@ function base64ToBlob(contentBase64: string, mimeType: string) {
   return new Blob([bytes], { type: mimeType || 'application/octet-stream' })
 }
 
+type FilePreview = {
+  name: string
+  mimeType: string
+  url: string | null
+  docxBuffer: ArrayBuffer | null
+  message: string | null
+}
+
+function DocxFilePreview({ data }: { data: ArrayBuffer }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    container.replaceChildren()
+    let cancelled = false
+
+    void import('docx-preview').then(({ renderAsync }) => {
+      if (cancelled) return
+      return renderAsync(data, container, undefined, {
+        className: 'docx-preview-page',
+        inWrapper: true,
+        ignoreWidth: false,
+        ignoreHeight: false,
+        ignoreFonts: false,
+        breakPages: true,
+        renderHeaders: true,
+        renderFooters: true,
+        renderFootnotes: true,
+        renderEndnotes: true,
+        useBase64URL: true,
+      })
+    }).catch((error) => console.error('Không thể hiển thị file DOCX:', error))
+
+    return () => { cancelled = true }
+  }, [data])
+
+  return <div ref={containerRef} className="docx-file-preview" />
+}
+
 function FileDropzone({ label, files, onChange, accept, validateFile }: { label: string; files: File[]; onChange: (files: File[]) => void; accept: string; validateFile: (file: File) => boolean }) {
   const [dragging, setDragging] = useState(false)
   const addFiles = (list: FileList | null) => {
@@ -146,6 +186,8 @@ export function DocumentsPage() {
   const [selectedDoc, setSelectedDoc] = useState<DocumentRow | null>(null)
   const [docFiles, setDocFiles] = useState<{ id: string; name: string; object_path: string | null; file_kind: string }[]>([])
   const [loadingFiles, setLoadingFiles] = useState(false)
+  const [filePreview, setFilePreview] = useState<FilePreview | null>(null)
+  const [loadingPreview, setLoadingPreview] = useState(false)
 
   // Helper function to check if current user is in assignee list
   const isUserAssignee = useCallback((doc: DocumentRow): boolean => {
@@ -207,6 +249,60 @@ export function DocumentsPage() {
     if (blob.size === 0) throw new Error('File tải về đang rỗng.')
     downloadBlob(blob, payload.name)
   }
+
+  async function previewDocumentFile(fileId: string) {
+    setLoadingPreview(true)
+    try {
+      const payload = await callBackend<{
+        ok: boolean
+        name: string
+        mimeType: string
+        contentBase64: string
+      }>('/api/download-document-file', { fileId })
+
+      const blob = base64ToBlob(payload.contentBase64, payload.mimeType)
+      if (blob.size === 0) throw new Error('File xem trước đang rỗng.')
+
+      if (/\.docx$/i.test(payload.name)) {
+        const arrayBuffer = await blob.arrayBuffer()
+        setFilePreview({ name: payload.name, mimeType: payload.mimeType, url: null, docxBuffer: arrayBuffer, message: null })
+        return
+      }
+
+      if (/\.doc$/i.test(payload.name)) {
+        setFilePreview({
+          name: payload.name,
+          mimeType: payload.mimeType,
+          url: null,
+          docxBuffer: null,
+          message: 'Định dạng Word .doc cũ chưa thể xem trực tiếp trên trình duyệt. Bạn có thể tải file về để mở.',
+        })
+        return
+      }
+
+      const objectUrl = URL.createObjectURL(blob)
+      setFilePreview(current => {
+        if (current?.url) URL.revokeObjectURL(current.url)
+        return { name: payload.name, mimeType: payload.mimeType, url: objectUrl, docxBuffer: null, message: null }
+      })
+    } catch (error) {
+      if (emitSessionExpired(error)) return
+      notify(error instanceof Error ? error.message : 'Không xem được file.', 'error')
+    } finally {
+      setLoadingPreview(false)
+    }
+  }
+
+  function closeFilePreview() {
+    setFilePreview(current => {
+      if (current?.url) URL.revokeObjectURL(current.url)
+      return null
+    })
+  }
+
+  useEffect(() => () => {
+    if (filePreview?.url) URL.revokeObjectURL(filePreview.url)
+  }, [filePreview?.url])
 
   const resetCreateForm = () => {
     setAssigneeInput('')
@@ -901,11 +997,11 @@ export function DocumentsPage() {
               <div className="document-file-grid" style={{ marginTop: '24px' }}>
                 <div>
                   <FileDropzone label="Văn bản Word" files={attachments} onChange={setAttachments} accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" validateFile={isWordFile} />
-                  {editingDoc && <ListFileDoc documentId={editingDoc.id} refreshKey={fileRefreshKey} pendingFiles={attachments.map(file => ({ name: file.name, kind: 'attachment' }))} fileKind="attachment" onRemoveExistingFile={removeExistingFile} downloadFile={downloadDocumentFile} />}
+                  {editingDoc && <ListFileDoc documentId={editingDoc.id} refreshKey={fileRefreshKey} pendingFiles={attachments.map(file => ({ name: file.name, kind: 'attachment' }))} fileKind="attachment" onRemoveExistingFile={removeExistingFile} downloadFile={downloadDocumentFile} previewFile={previewDocumentFile} />}
                 </div>
                 <div>
                   <FileDropzone label="Ban Hành PDF" files={issuedAttachments} onChange={setIssuedAttachments} accept=".pdf,application/pdf" validateFile={isPdfFile} />
-                  {editingDoc && <ListFileDoc documentId={editingDoc.id} refreshKey={fileRefreshKey} pendingFiles={issuedAttachments.map(file => ({ name: file.name, kind: 'issued_attachment' }))} fileKind="issued_attachment" onRemoveExistingFile={removeExistingFile} downloadFile={downloadDocumentFile} />}
+                  {editingDoc && <ListFileDoc documentId={editingDoc.id} refreshKey={fileRefreshKey} pendingFiles={issuedAttachments.map(file => ({ name: file.name, kind: 'issued_attachment' }))} fileKind="issued_attachment" onRemoveExistingFile={removeExistingFile} downloadFile={downloadDocumentFile} previewFile={previewDocumentFile} />}
                 </div>
               </div>
             </div>
@@ -1006,7 +1102,14 @@ export function DocumentsPage() {
                           }}
                         >
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontWeight: 500 }}>{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => void previewDocumentFile(file.id)}
+                              style={{ border: 0, padding: 0, background: 'transparent', color: 'var(--blue)', cursor: 'pointer', fontWeight: 600, textAlign: 'left', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                              title={`Xem ${file.name}`}
+                            >
+                              {file.name}
+                            </button>
                             <span style={{ fontSize: '0.8rem', color: isIssued ? '#087b38' : 'var(--muted)' }}>
                               {isIssued ? 'Tệp lưu trữ chính thức' : 'Tài liệu đính kèm'}
                             </span>
@@ -1044,6 +1147,27 @@ export function DocumentsPage() {
             </div>
             <div className="modal-form-footer">
               <button type="button" className="btn-cancel" onClick={() => setSelectedDoc(null)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {(filePreview || loadingPreview) && (
+        <div className="modal file-preview-modal" style={{ zIndex: 1200 }}>
+          <div className="file-preview-shell">
+            <div className="modal-form-header">
+              <h2>{loadingPreview ? 'Đang mở file...' : filePreview?.name}</h2>
+              <button type="button" className="btn-close" onClick={closeFilePreview} disabled={loadingPreview} aria-label="Đóng xem file"><X /></button>
+            </div>
+            <div className="file-preview-content">
+              {loadingPreview ? (
+                <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--muted)' }}>Đang tải nội dung file...</div>
+              ) : filePreview?.docxBuffer ? (
+                <DocxFilePreview data={filePreview.docxBuffer} />
+              ) : filePreview?.url ? (
+                <iframe title={`Xem ${filePreview.name}`} src={filePreview.url} />
+              ) : (
+                <div style={{ height: '100%', display: 'grid', placeItems: 'center', padding: '32px', textAlign: 'center', color: 'var(--muted)' }}>{filePreview?.message}</div>
+              )}
             </div>
           </div>
         </div>
