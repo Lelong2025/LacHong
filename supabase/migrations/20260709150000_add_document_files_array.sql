@@ -13,7 +13,7 @@ SET files = (
       jsonb_build_object(
         'name', df.file_name,
         'path', df.file_path,
-        'uploaded_at', df.uploaded_at
+        'uploaded_at', df.created_at
       )
     ),
     '[]'::jsonb
@@ -37,7 +37,7 @@ BEGIN
           jsonb_build_object(
             'name', df.file_name,
             'path', df.file_path,
-            'uploaded_at', df.uploaded_at
+            'uploaded_at', df.created_at
           )
         ),
         '[]'::jsonb
@@ -55,7 +55,7 @@ BEGIN
           jsonb_build_object(
             'name', df.file_name,
             'path', df.file_path,
-            'uploaded_at', df.uploaded_at
+            'uploaded_at', df.created_at
           )
         ),
         '[]'::jsonb
