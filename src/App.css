@@ -3678,6 +3678,13 @@ td small {
   overflow-x: auto;
 }
 
+.vertical-bar-chart>.empty-state-wrap {
+  flex: 1 0 100%;
+  min-width: 100%;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 .vertical-bar-item {
   min-width: 84px;
   flex: 1 0 84px;
