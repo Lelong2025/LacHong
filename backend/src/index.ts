@@ -92,7 +92,9 @@ app.use(cors({
       callback(new Error(`Origin ${origin} is not allowed by CORS`))
     },
 }))
-app.use(express.json({ limit: '8mb' }))
+// File contents currently travel as Base64 JSON. Keep the transport ceiling
+// configurable and comfortably above the former 5 MB product restriction.
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '100mb' }))
 
 type AuthedRequest = express.Request & { user?: User }
 
@@ -697,6 +699,7 @@ type UsageValue = {
   remainingBytes: number
   percent: number
   note?: string
+  driveUsedBytes?: number
   creditDetails?: {
     used: number
     limit: number
@@ -778,9 +781,15 @@ app.get('/api/resource-usage', requireUser, async (req, res) => {
     const quota = googleDriveResult.value.data.storageQuota
     const usedBytes = Number(quota?.usage)
     const limitBytes = Number(quota?.limit)
-    googleDriveUsage = Number.isFinite(usedBytes) && Number.isFinite(limitBytes) && limitBytes > 0
-      ? toUsageValue(usedBytes, limitBytes, process.env.GOOGLE_DRIVE_ACCOUNT_EMAIL || undefined)
-      : { error: 'Google Drive không trả về giới hạn lưu trữ.' }
+    const driveUsedBytes = Number(quota?.usageInDrive)
+    if (Number.isFinite(usedBytes) && Number.isFinite(limitBytes) && limitBytes > 0) {
+      googleDriveUsage = {
+        ...toUsageValue(usedBytes, limitBytes, process.env.GOOGLE_DRIVE_ACCOUNT_EMAIL || undefined),
+        ...(Number.isFinite(driveUsedBytes) ? { driveUsedBytes } : {}),
+      }
+    } else {
+      googleDriveUsage = { error: 'Google Drive không trả về giới hạn lưu trữ.' }
+    }
   } else {
     console.error('Unable to load Google Drive usage:', googleDriveResult.reason)
     googleDriveUsage = { error: 'Không đọc được dung lượng Google Drive.' }
@@ -1023,8 +1032,8 @@ app.post('/api/upload-document-file', requireUser, async (req, res) => {
     return
   }
 
-  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > 5 * 1024 * 1024) {
-    res.status(400).json({ error: `File "${name}" vượt quá 5MB.` })
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes <= 0) {
+    res.status(400).json({ error: `Dung lượng file "${name}" không hợp lệ.` })
     return
   }
 
@@ -1051,8 +1060,8 @@ app.post('/api/upload-document-file', requireUser, async (req, res) => {
   }
 
   const fileBuffer = Buffer.from(contentBase64, 'base64')
-  if (fileBuffer.byteLength === 0 || fileBuffer.byteLength > 5 * 1024 * 1024) {
-    res.status(400).json({ error: `File "${name}" không hợp lệ hoặc vượt quá 5MB.` })
+  if (fileBuffer.byteLength === 0 || fileBuffer.byteLength !== sizeBytes) {
+    res.status(400).json({ error: `Nội dung hoặc dung lượng file "${name}" không hợp lệ.` })
     return
   }
 

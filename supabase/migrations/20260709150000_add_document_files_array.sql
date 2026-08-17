@@ -13,7 +13,7 @@ SET files = (
       jsonb_build_object(
         'name', df.file_name,
         'path', df.file_path,
-        'uploaded_at', df.created_at
+        'uploaded_at', df.uploaded_at
       )
     ),
     '[]'::jsonb
@@ -37,7 +37,7 @@ BEGIN
           jsonb_build_object(
             'name', df.file_name,
             'path', df.file_path,
-            'uploaded_at', df.created_at
+            'uploaded_at', df.uploaded_at
           )
         ),
         '[]'::jsonb
@@ -55,7 +55,7 @@ BEGIN
           jsonb_build_object(
             'name', df.file_name,
             'path', df.file_path,
-            'uploaded_at', df.created_at
+            'uploaded_at', df.uploaded_at
           )
         ),
         '[]'::jsonb
@@ -76,5 +76,5 @@ CREATE TRIGGER sync_files_to_document
   FOR EACH ROW
   EXECUTE FUNCTION sync_document_files_to_document();
 
--- 4. cho phép上传 file
-UPDATE storage.objects SET ...
+-- -- 4. cho phép上传 file
+-- UPDATE storage.objects SET ...

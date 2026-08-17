@@ -202,8 +202,6 @@ export function DocumentsPage() {
     if (!files.length) return
 
     for (const file of files) {
-      if (file.size > 5 * 1024 * 1024) throw new Error(`File "${file.name}" vượt quá 5MB.`)
-
       await callBackend('/api/upload-document-file', {
         documentId,
         name: file.name,

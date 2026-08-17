@@ -10,6 +10,7 @@ type UsageValue = {
   remainingBytes: number
   percent: number
   note?: string
+  driveUsedBytes?: number
   creditDetails?: {
     used: number
     limit: number
@@ -124,6 +125,12 @@ function UsageBar({
             <small>{formatBytes(value.usedBytes)} / {formatBytes(value.limitBytes)}</small>
             <strong>Còn {formatBytes(value.remainingBytes)}</strong>
           </div>
+          {kind === 'drive' && value.driveUsedBytes !== undefined && (
+            <div className="resource-usage-breakdown">
+              <small>File trên Google Drive</small>
+              <strong>{formatBytes(value.driveUsedBytes)}</strong>
+            </div>
+          )}
           {value.note && <small className="resource-usage-note">{value.note}</small>}
         </>
       )}
