@@ -2091,6 +2091,43 @@ td small {
   border: 1px solid var(--line, #e2e8f0)
 }
 
+.document-form {
+  position: relative
+}
+
+.document-saving-overlay {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  padding: 2rem;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(2px);
+  cursor: wait;
+}
+
+.document-saving-overlay strong {
+  font-size: 1rem;
+}
+
+.document-saving-overlay small {
+  color: var(--muted);
+}
+
+.document-saving-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--line);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+
 .modal-form-header {
   display: flex !important;
   justify-content: space-between;
@@ -2726,17 +2763,21 @@ td small {
 
 :root[data-theme='dark'] .primary,
 :root[data-theme='dark'] .btn-submit {
-  background: #f5f5f5;
-  color: #212121;
-  border: 1px solid #f5f5f5;
+  background: #1f5f9f;
+  color: #fff;
+  border: 1px solid #2875be;
   box-shadow: 0 8px 18px rgba(0, 0, 0, .22)
 }
 
 :root[data-theme='dark'] .primary:hover,
 :root[data-theme='dark'] .btn-submit:hover {
-  background: #fff;
-  border-color: #fff;
-  color: #212121
+  background: #2875be;
+  border-color: #5ea5ff;
+  color: #fff
+}
+
+:root[data-theme='dark'] .document-saving-overlay {
+  background: rgba(33, 33, 33, .88)
 }
 
 :root[data-theme='dark'] .text-button,
@@ -4667,6 +4708,15 @@ td small {
 
 .docx-file-preview {
   min-height: 100%;
+}
+
+.file-preview-status {
+  display: grid;
+  min-height: 120px;
+  place-items: center;
+  padding: 24px;
+  color: #d6deea;
+  text-align: center;
 }
 
 .docx-file-preview .docx-wrapper {

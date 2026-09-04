@@ -110,11 +110,15 @@ type FilePreview = {
 
 function DocxFilePreview({ data }: { data: ArrayBuffer }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const [rendering, setRendering] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
     container.replaceChildren()
+    setRendering(true)
+    setError('')
     let cancelled = false
 
     void import('docx-preview').then(({ renderAsync }) => {
@@ -132,12 +136,25 @@ function DocxFilePreview({ data }: { data: ArrayBuffer }) {
         renderEndnotes: true,
         useBase64URL: true,
       })
-    }).catch((error) => console.error('Không thể hiển thị file DOCX:', error))
+    }).then(() => {
+      if (!cancelled) setRendering(false)
+    }).catch((renderError) => {
+      if (cancelled) return
+      console.error('Không thể hiển thị file DOCX:', renderError)
+      setRendering(false)
+      setError('Không thể hiển thị file DOCX. Bạn có thể tải file về để mở.')
+    })
 
     return () => { cancelled = true }
   }, [data])
 
-  return <div ref={containerRef} className="docx-file-preview" />
+  return (
+    <div className="docx-file-preview">
+      {rendering && <div className="file-preview-status">Đang dựng nội dung file...</div>}
+      {error && <div className="file-preview-status">{error}</div>}
+      <div ref={containerRef} />
+    </div>
+  )
 }
 
 function FileDropzone({ label, files, onChange, accept, validateFile }: { label: string; files: File[]; onChange: (files: File[]) => void; accept: string; validateFile: (file: File) => boolean }) {
@@ -263,17 +280,23 @@ export function DocumentsPage() {
 
       if (/\.docx$/i.test(payload.name)) {
         const arrayBuffer = await blob.arrayBuffer()
-        setFilePreview({ name: payload.name, mimeType: payload.mimeType, url: null, docxBuffer: arrayBuffer, message: null })
+        setFilePreview(current => {
+          if (current?.url) URL.revokeObjectURL(current.url)
+          return { name: payload.name, mimeType: payload.mimeType, url: null, docxBuffer: arrayBuffer, message: null }
+        })
         return
       }
 
       if (/\.doc$/i.test(payload.name)) {
-        setFilePreview({
-          name: payload.name,
-          mimeType: payload.mimeType,
-          url: null,
-          docxBuffer: null,
-          message: 'Định dạng Word .doc cũ chưa thể xem trực tiếp trên trình duyệt. Bạn có thể tải file về để mở.',
+        setFilePreview(current => {
+          if (current?.url) URL.revokeObjectURL(current.url)
+          return {
+            name: payload.name,
+            mimeType: payload.mimeType,
+            url: null,
+            docxBuffer: null,
+            message: 'Định dạng Word .doc cũ chưa thể xem trực tiếp trên trình duyệt. Bạn có thể tải file về để mở.',
+          }
         })
         return
       }
@@ -918,10 +941,17 @@ export function DocumentsPage() {
       {/* Modal Tạo hồ sơ mới */}
       {show && (
         <div className="modal">
-          <form className="document-form modal-container-style" onSubmit={create}>
+          <form className="document-form modal-container-style" onSubmit={create} aria-busy={savingDocument}>
+            {savingDocument && (
+              <div className="document-saving-overlay" role="status" aria-live="polite">
+                <span className="document-saving-spinner" aria-hidden="true" />
+                <strong>Đang lưu hồ sơ...</strong>
+                <small>Vui lòng chờ trong giây lát</small>
+              </div>
+            )}
             <div className="modal-form-header">
               <h2>{editingDoc ? 'Sửa hồ sơ' : 'Tạo hồ sơ mới'}</h2>
-              <button type="button" className="btn-close" onClick={() => { setShow(false); resetCreateForm() }}><X /></button>
+              <button type="button" className="btn-close" onClick={() => { setShow(false); resetCreateForm() }} disabled={savingDocument}><X /></button>
             </div>
             <div className="modal-form-body">
               <div className="form-top-row">
