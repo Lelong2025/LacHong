@@ -578,7 +578,7 @@ td {
 }
 
 th {
-  background: #eaf0ff;
+  background: var(--table-header-bg);
   font-size: .85rem;
   text-transform: uppercase
 }
@@ -1067,12 +1067,24 @@ td small {
   background: #fff;
   color: var(--text);
   border: 1px solid var(--line);
-  border-radius: .55rem
+  border-radius: .55rem;
+  transition: color .18s ease, background .18s ease, border-color .18s ease
 }
 
 .users-filter-button svg {
   width: 16px;
   height: 16px
+}
+
+.users-filter-button:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: var(--blue-light)
+}
+
+.users-filter-button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px
 }
 
 .users-filter-button.active {
@@ -2656,8 +2668,18 @@ td small {
 }
 
 :root[data-theme='dark'] th {
-  background: #f5f5f5;
-  color: #212121
+  background: var(--table-header-bg);
+  color: var(--text)
+}
+
+:root[data-theme='dark'] .users-filter-button {
+  background: var(--surface-soft)
+}
+
+:root[data-theme='dark'] .users-filter-button.active {
+  color: #9ac7ff;
+  border-color: #5ea5ff;
+  background: var(--blue-light)
 }
 
 :root[data-theme='dark'] td,
