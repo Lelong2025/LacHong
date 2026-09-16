@@ -7,6 +7,7 @@ import nodemailer from 'nodemailer'
 import WebSocket from 'ws'
 import { createClient, type User } from '@supabase/supabase-js'
 import { v2 as cloudinary } from 'cloudinary'
+import WordExtractor from 'word-extractor'
 
 dotenv.config()
 dotenv.config({ path: '../.env' })
@@ -269,6 +270,10 @@ const documentTypeLabels: Record<string, string> = {
   khenthuong: 'Khen Thưởng',
   baocao: 'Báo Cáo',
   kehoach: 'Kế Hoạch',
+  xacnhan: 'Xác Nhận',
+  congvan: 'Công Văn',
+  thongbao: 'Thông Báo',
+  bienbanhop: 'Biên Bản Họp',
 }
 
 function buildAssignmentMailHtml(params: { assigneeName: string; documentTitle: string; documentType: string }) {
@@ -913,7 +918,7 @@ app.post('/api/save-document', requireUser, async (req, res) => {
     return
   }
 
-  const allowedTypes = new Set(['totrinh', 'quyetdinh', 'khenthuong', 'baocao', 'kehoach'])
+  const allowedTypes = new Set(['totrinh', 'quyetdinh', 'khenthuong', 'baocao', 'kehoach', 'xacnhan', 'congvan', 'thongbao', 'bienbanhop'])
   const documentType = String(document.type ?? '')
   const title = String(document.title ?? '').trim()
   const description = String(document.description ?? '').trim()
@@ -1300,11 +1305,30 @@ app.post('/api/download-document-file', requireUser, async (req, res) => {
     return
   }
 
+  let docText: string | undefined
+  if (/\.doc$/i.test(file.name)) {
+    try {
+      const extractor = new WordExtractor()
+      const extracted = await extractor.extract(downloaded.buffer)
+      const body = (extracted.getBody() || '').trim()
+      const headers = (extracted.getHeaders() || '').trim()
+      const footers = (extracted.getFooters() || '').trim()
+      const parts: string[] = []
+      if (headers) parts.push(headers)
+      if (body) parts.push(body)
+      if (footers) parts.push(footers)
+      docText = parts.join('\n\n')
+    } catch (docErr) {
+      console.warn(`[DOC] Không thể trích xuất văn bản từ ${file.name}:`, docErr)
+    }
+  }
+
   res.json({
     ok: true,
     name: file.name,
     mimeType: file.mime_type || 'application/octet-stream',
     contentBase64: downloaded.buffer.toString('base64'),
+    docText: docText || undefined,
   })
 })
 

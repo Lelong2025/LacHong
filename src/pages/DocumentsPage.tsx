@@ -1,4 +1,4 @@
-import { Eye, FilePlus2, Search, Trash2, UploadCloud, X, Send, Stamp, CheckCircle2, FileText, Clock3, Hash, FolderOpen, Download, Pencil } from 'lucide-react'
+import { Eye, FilePlus2, Search, Trash2, UploadCloud, X, Send, Stamp, CheckCircle2, FileText, Clock3, Hash, FolderOpen, Download, Pencil, BadgeCheck, Mail, Bell, ClipboardList, UserCheck, Check, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, useMemo, type FormEvent } from 'react'
 import * as XLSX from 'xlsx'
 import { useAuth } from '../contexts/AuthContext'
@@ -18,10 +18,15 @@ const documentTypeLabels: Record<string, string> = {
   khenthuong: 'Khen Thưởng',
   baocao: 'Báo Cáo',
   kehoach: 'Kế Hoạch',
+  xacnhan: 'Xác Nhận',
+  congvan: 'Công Văn',
+  thongbao: 'Thông Báo',
+  bienbanhop: 'Biên Bản Họp',
 }
 
 const labels: Record<string, string> = {
   ...documentTypeLabels,
+  chuabanhanh: 'Chưa Ban Hành',
   banhanh: 'Ban Hành',
 }
 
@@ -65,6 +70,7 @@ const documentStatusLabel = (document: DocumentRow) => statusLabels[document.sta
 const matchesFilter = (document: DocumentRow, filter: string) => {
   if (!filter) return true
   if (filter === 'banhanh') return document.status === 'issued'
+  if (filter === 'chuabanhanh') return document.status !== 'issued'
   return document.type === filter
 }
 
@@ -105,7 +111,105 @@ type FilePreview = {
   mimeType: string
   url: string | null
   docxBuffer: ArrayBuffer | null
+  docText: string | null
   message: string | null
+}
+
+function extractDocTextFallback(uint8: Uint8Array): string {
+  try {
+    const decoder16 = new TextDecoder('utf-16le', { fatal: false })
+    const full16 = decoder16.decode(uint8)
+    const cleanChunks: string[] = []
+    const rawLines = full16.split(/[\r\n]+/)
+    for (const line of rawLines) {
+      const cleaned = line.replace(/[^\x20-\x7E\u00A0-\u024F\u1EA0-\u1EF9]/g, ' ').replace(/\s+/g, ' ').trim()
+      if (cleaned.length >= 8 && !cleaned.includes('Microsoft Word') && !cleaned.startsWith('Root Entry')) {
+        cleanChunks.push(cleaned)
+      }
+    }
+    if (cleanChunks.length > 0) {
+      return cleanChunks.join('\n\n')
+    }
+
+    const decoder8 = new TextDecoder('windows-1252', { fatal: false })
+    const full8 = decoder8.decode(uint8)
+    const raw8 = full8.split(/[\r\n]+/)
+    for (const line of raw8) {
+      const cleaned = line.replace(/[^\x20-\x7E\u00A0-\u024F\u1EA0-\u1EF9]/g, ' ').replace(/\s+/g, ' ').trim()
+      if (cleaned.length >= 10 && !cleaned.startsWith('Root Entry')) {
+        cleanChunks.push(cleaned)
+      }
+    }
+    return cleanChunks.join('\n\n')
+  } catch (err) {
+    console.warn('extractDocTextFallback error:', err)
+    return ''
+  }
+}
+
+function DocFilePreview({ name, text }: { name: string; text: string }) {
+  const wordCount = useMemo(() => {
+    const trimmed = text.trim()
+    return trimmed ? trimmed.split(/\s+/).length : 0
+  }, [text])
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${name}</title>
+          <style>
+            body { font-family: 'Times New Roman', serif; font-size: 13pt; line-height: 1.6; padding: 40px; color: #111; }
+            pre { white-space: pre-wrap; font-family: inherit; }
+          </style>
+        </head>
+        <body>
+          <pre>${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
+  }
+
+  return (
+    <div className="doc-file-preview">
+      <div className="doc-preview-toolbar">
+        <div className="doc-preview-info">
+          <span>{name}</span>
+          <span style={{ opacity: 0.7, fontSize: '0.75rem' }}>({wordCount} từ)</span>
+        </div>
+        <button
+          type="button"
+          onClick={handlePrint}
+          style={{
+            background: 'rgba(255,255,255,0.15)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            color: '#fff',
+            borderRadius: '4px',
+            padding: '3px 10px',
+            fontSize: '0.75rem',
+            cursor: 'pointer',
+          }}
+        >
+          In nội dung
+        </button>
+      </div>
+      <div className="doc-preview-sheet">
+        {text ? (
+          <div>{text}</div>
+        ) : (
+          <div className="doc-preview-empty">
+            Không tìm thấy nội dung văn bản trong tệp .doc này. Bạn có thể tải file về để mở bằng Microsoft Word.
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function DocxFilePreview({ data }: { data: ArrayBuffer }) {
@@ -157,6 +261,97 @@ function DocxFilePreview({ data }: { data: ArrayBuffer }) {
   )
 }
 
+function PaginationBar({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange,
+}: {
+  currentPage: number
+  totalPages: number
+  totalItems: number
+  pageSize: number
+  onPageChange: (page: number) => void
+}) {
+  if (totalItems === 0) return null
+
+  const startItem = (currentPage - 1) * pageSize + 1
+  const endItem = Math.min(currentPage * pageSize, totalItems)
+
+  const getPageNumbers = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1)
+    }
+    const pages: (number | string)[] = [1]
+    if (currentPage > 3) pages.push('...')
+    const start = Math.max(2, currentPage - 1)
+    const end = Math.min(totalPages - 1, currentPage + 1)
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+    if (currentPage < totalPages - 2) pages.push('...')
+    pages.push(totalPages)
+    return pages
+  }
+
+  return (
+    <div className="table-pagination-container">
+      <div className="pagination-info">
+        Hiển thị <b>{startItem}</b> - <b>{endItem}</b> trên tổng số <b>{totalItems}</b> hồ sơ
+      </div>
+      {totalPages > 1 && (
+        <div className="pagination-controls">
+          <button
+            type="button"
+            className="pagination-btn pagination-nav-btn"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+            title="Trang trước"
+            aria-label="Trang trước"
+          >
+            <ChevronLeft size={16} />
+            <span className="pagination-text">Trước</span>
+          </button>
+
+          <div className="pagination-pages">
+            {getPageNumbers().map((page, idx) => {
+              if (page === '...') {
+                return <span key={`ellipsis-${idx}`} className="pagination-ellipsis">...</span>
+              }
+              const pageNum = Number(page)
+              const isActive = pageNum === currentPage
+              return (
+                <button
+                  key={pageNum}
+                  type="button"
+                  className={`pagination-btn pagination-page-btn${isActive ? ' is-active' : ''}`}
+                  onClick={() => onPageChange(pageNum)}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            type="button"
+            className="pagination-btn pagination-nav-btn"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            title="Trang sau"
+            aria-label="Trang sau"
+          >
+            <span className="pagination-text">Sau</span>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FileDropzone({ label, files, onChange, accept, validateFile }: { label: string; files: File[]; onChange: (files: File[]) => void; accept: string; validateFile: (file: File) => boolean }) {
   const [dragging, setDragging] = useState(false)
   const addFiles = (list: FileList | null) => {
@@ -178,11 +373,156 @@ function FileDropzone({ label, files, onChange, accept, validateFile }: { label:
   )
 }
 
+function AssigneeCombobox({
+  value,
+  onChange,
+  options,
+}: {
+  value: string
+  onChange: (value: string) => void
+  options: AssigneeOption[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState(value)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setQuery(value)
+  }, [value])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return options
+    return options.filter(opt => {
+      const emailMatch = opt.email.toLowerCase().includes(q)
+      const nameMatch = (opt.full_name || '').toLowerCase().includes(q)
+      return emailMatch || nameMatch
+    })
+  }, [options, query])
+
+  const handleSelect = (val: string) => {
+    onChange(val)
+    setQuery(val)
+    setOpen(false)
+  }
+
+  const handleInputChange = (text: string) => {
+    setQuery(text)
+    onChange(text)
+  }
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setQuery('')
+    onChange('')
+    setOpen(false)
+  }
+
+  return (
+    <div className="assignee-combobox-root" ref={rootRef}>
+      <div
+        className={`assignee-combobox-control ${open ? 'is-focused' : ''}`}
+        onClick={() => setOpen(true)}
+      >
+        <UserCheck className="combobox-lead-icon" size={17} />
+        <input
+          value={query}
+          onChange={e => handleInputChange(e.target.value)}
+          onFocus={() => setOpen(true)}
+          placeholder="Tìm người thực hiện (tên, email)..."
+          className="combobox-search-input"
+        />
+        {query && (
+          <button
+            type="button"
+            className="combobox-clear-btn"
+            onClick={handleClear}
+            title="Xóa tìm kiếm"
+          >
+            <X size={15} />
+          </button>
+        )}
+        <button
+          type="button"
+          className="combobox-toggle-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen(o => !o)
+          }}
+          title="Danh sách người thực hiện"
+        >
+          <ChevronDown size={15} />
+        </button>
+      </div>
+
+      {open && (
+        <div className="assignee-combobox-menu">
+          <button
+            type="button"
+            className={`combobox-option-item ${!value ? 'is-active' : ''}`}
+            onClick={() => handleSelect('')}
+          >
+            <span className="option-name">Tất cả người thực hiện</span>
+            {!value && <Check size={14} className="option-check" />}
+          </button>
+          <button
+            type="button"
+            className={`combobox-option-item ${value === 'Chưa gán' ? 'is-active' : ''}`}
+            onClick={() => handleSelect('Chưa gán')}
+          >
+            <span className="option-name">Chưa gán người thực hiện</span>
+            {value === 'Chưa gán' && <Check size={14} className="option-check" />}
+          </button>
+
+          {filtered.length > 0 && <div className="combobox-menu-divider" />}
+
+          <div className="combobox-option-scroll">
+            {filtered.map(opt => {
+              const isSelected = value.toLowerCase() === opt.email.toLowerCase() || (Boolean(opt.full_name) && value.toLowerCase() === opt.full_name?.toLowerCase())
+              return (
+                <button
+                  type="button"
+                  key={opt.email}
+                  className={`combobox-option-item ${isSelected ? 'is-active' : ''}`}
+                  onClick={() => handleSelect(opt.email)}
+                >
+                  <div className="option-text">
+                    <span className="option-name">{opt.full_name || opt.email}</span>
+                    <span className="option-email">{opt.email}</span>
+                  </div>
+                  {isSelected && <Check size={14} className="option-check" />}
+                </button>
+              )
+            })}
+          </div>
+
+          {filtered.length === 0 && (
+            <div className="combobox-menu-empty">
+              Không tìm thấy người thực hiện theo "{query}".
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function DocumentsPage() {
   const { user, profile } = useAuth()
   const { notify, confirmAction } = useNotifier()
   const [allDocs, setAllDocs] = useState<DocumentRow[]>([])
   const [search, setSearch] = useState('')
+  const [assigneeSearch, setAssigneeSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [yearFilter, setYearFilter] = useState('')
   const [show, setShow] = useState(false)
@@ -273,21 +613,30 @@ export function DocumentsPage() {
         name: string
         mimeType: string
         contentBase64: string
+        docText?: string
       }>('/api/download-document-file', { fileId })
 
       const blob = base64ToBlob(payload.contentBase64, payload.mimeType)
       if (blob.size === 0) throw new Error('File xem trước đang rỗng.')
 
-      if (/\.docx$/i.test(payload.name)) {
-        const arrayBuffer = await blob.arrayBuffer()
+      const arrayBuffer = await blob.arrayBuffer()
+      const uint8 = new Uint8Array(arrayBuffer)
+      const isZipDocx = uint8.length >= 4 && uint8[0] === 0x50 && uint8[1] === 0x4B // 'PK'
+
+      if (/\.docx$/i.test(payload.name) || (/\.doc$/i.test(payload.name) && isZipDocx)) {
         setFilePreview(current => {
           if (current?.url) URL.revokeObjectURL(current.url)
-          return { name: payload.name, mimeType: payload.mimeType, url: null, docxBuffer: arrayBuffer, message: null }
+          return { name: payload.name, mimeType: payload.mimeType, url: null, docxBuffer: arrayBuffer, docText: null, message: null }
         })
         return
       }
 
       if (/\.doc$/i.test(payload.name)) {
+        let extractedText = payload.docText || ''
+        if (!extractedText) {
+          extractedText = extractDocTextFallback(uint8)
+        }
+
         setFilePreview(current => {
           if (current?.url) URL.revokeObjectURL(current.url)
           return {
@@ -295,7 +644,8 @@ export function DocumentsPage() {
             mimeType: payload.mimeType,
             url: null,
             docxBuffer: null,
-            message: 'Định dạng Word .doc cũ chưa thể xem trực tiếp trên trình duyệt. Bạn có thể tải file về để mở.',
+            docText: extractedText || 'Không tìm thấy nội dung văn bản trong tệp .doc này. Bạn có thể tải file về để mở bằng Microsoft Word.',
+            message: null,
           }
         })
         return
@@ -304,7 +654,7 @@ export function DocumentsPage() {
       const objectUrl = URL.createObjectURL(blob)
       setFilePreview(current => {
         if (current?.url) URL.revokeObjectURL(current.url)
-        return { name: payload.name, mimeType: payload.mimeType, url: objectUrl, docxBuffer: null, message: null }
+        return { name: payload.name, mimeType: payload.mimeType, url: objectUrl, docxBuffer: null, docText: null, message: null }
       })
     } catch (error) {
       if (emitSessionExpired(error)) return
@@ -395,14 +745,19 @@ export function DocumentsPage() {
       const matchesYear = !yearFilter || docYear === Number(yearFilter)
       const matchesSearch = !search ||
         doc.title.toLowerCase().includes(search.toLowerCase()) ||
-        (doc.description && doc.description.toLowerCase().includes(search.toLowerCase()))
+        (doc.description && doc.description.toLowerCase().includes(search.toLowerCase())) ||
+        (doc.assignee_name && doc.assignee_name.toLowerCase().includes(search.toLowerCase()))
+
+      const assigneeDisplay = doc.assignee_name || 'Chưa gán'
+      const matchesAssignee = !assigneeSearch.trim() ||
+        assigneeDisplay.toLowerCase().includes(assigneeSearch.trim().toLowerCase())
 
       // Kiểm tra quyền xem: admin, người tạo, hoặc người có trong danh sách người thực hiện
       const canView = isAdmin || doc.created_by === user?.id || isUserAssignee(doc)
 
-      return matchesType && matchesYear && matchesSearch && canView
+      return matchesType && matchesYear && matchesSearch && matchesAssignee && canView
     })
-  }, [allDocs, typeFilter, yearFilter, search, isAdmin, user?.id, isUserAssignee])
+  }, [allDocs, typeFilter, yearFilter, search, assigneeSearch, isAdmin, user?.id, isUserAssignee])
 
   const availableYears = useMemo(() => {
     const years = new Set(allDocs.map(doc => doc.document_year || new Date(doc.created_at).getFullYear()))
@@ -410,15 +765,48 @@ export function DocumentsPage() {
     return Array.from(years).sort((a, b) => b - a)
   }, [allDocs])
 
+  const allAssigneeOptions = useMemo(() => {
+    const map = new Map<string, AssigneeOption>()
+    for (const doc of allDocs) {
+      if (!doc.assignee_name) continue
+      const list = parseAssigneeNames(doc.assignee_name)
+      for (const a of list) {
+        if (!map.has(a.email.toLowerCase())) {
+          map.set(a.email.toLowerCase(), a)
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => (a.full_name || a.email).localeCompare(b.full_name || b.email))
+  }, [allDocs])
+
+  const PAGE_SIZE = 10
+  const [currentPage, setCurrentPage] = useState(1)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [typeFilter, yearFilter, search, assigneeSearch])
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages)
+
+  const paginatedItems = useMemo(() => {
+    const startIndex = (validCurrentPage - 1) * PAGE_SIZE
+    return filteredItems.slice(startIndex, startIndex + PAGE_SIZE)
+  }, [filteredItems, validCurrentPage])
+
   const deletableFilteredItems = useMemo(() => {
     return filteredItems.filter((document) => isAdmin || document.created_by === user?.id)
   }, [filteredItems, isAdmin, user?.id])
+
+  const deletablePageItems = useMemo(() => {
+    return paginatedItems.filter((document) => isAdmin || document.created_by === user?.id)
+  }, [paginatedItems, isAdmin, user?.id])
 
   const selectedDeletableItems = useMemo(() => {
     return deletableFilteredItems.filter((document) => selectedIds.has(document.id))
   }, [deletableFilteredItems, selectedIds])
 
-  const allDeletableSelected = deletableFilteredItems.length > 0 && selectedDeletableItems.length === deletableFilteredItems.length
+  const allDeletableSelected = deletablePageItems.length > 0 && deletablePageItems.every(doc => selectedIds.has(doc.id))
 
   useEffect(() => {
     setSelectedIds((current) => {
@@ -688,9 +1076,9 @@ export function DocumentsPage() {
     setSelectedIds((current) => {
       const next = new Set(current)
       if (allDeletableSelected) {
-        deletableFilteredItems.forEach((document) => next.delete(document.id))
+        deletablePageItems.forEach((document) => next.delete(document.id))
       } else {
-        deletableFilteredItems.forEach((document) => next.add(document.id))
+        deletablePageItems.forEach((document) => next.add(document.id))
       }
       return next
     })
@@ -730,11 +1118,16 @@ export function DocumentsPage() {
   }
 
   const typeList = [
+    { key: 'chuabanhanh', label: 'Chưa Ban Hành', icon: Clock3 },
     { key: 'totrinh', label: 'Tờ Trình', icon: Send },
     { key: 'quyetdinh', label: 'Quyết Định', icon: Stamp },
     { key: 'khenthuong', label: 'Khen Thưởng', icon: CheckCircle2 },
     { key: 'baocao', label: 'Báo Cáo', icon: FileText },
     { key: 'kehoach', label: 'Kế Hoạch', icon: Clock3 },
+    { key: 'xacnhan', label: 'Xác Nhận', icon: BadgeCheck },
+    { key: 'congvan', label: 'Công Văn', icon: Mail },
+    { key: 'thongbao', label: 'Thông Báo', icon: Bell },
+    { key: 'bienbanhop', label: 'Biên Bản Họp', icon: ClipboardList },
     { key: 'banhanh', label: 'Ban Hành', icon: Hash },
   ]
   const typeSelectDefault = editingDoc?.type && documentTypeLabels[editingDoc.type]
@@ -757,7 +1150,7 @@ export function DocumentsPage() {
       </div>
 
       {/* Card Filter Loại Hồ Sơ */}
-      <section className="metric-grid" style={{ marginBottom: '1.5rem' }}>
+      <section className="metric-grid documents-metrics-row" style={{ marginBottom: '1.5rem' }}>
         <article
           className={`metric-card clickable ${!typeFilter ? 'active' : ''}`}
           onClick={() => setTypeFilter('')}
@@ -789,11 +1182,30 @@ export function DocumentsPage() {
         })}
       </section>
 
-      <section className="toolbar">
-        <label>
+      <section className="toolbar documents-toolbar">
+        <label className="toolbar-search-input">
           <Search />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo tiêu đề hoặc nội dung..." />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Tìm theo tiêu đề hoặc nội dung..."
+          />
+          {search && (
+            <button
+              type="button"
+              className="toolbar-clear-btn"
+              onClick={() => setSearch('')}
+              title="Xóa tìm kiếm nội dung"
+            >
+              <X size={15} />
+            </button>
+          )}
         </label>
+        <AssigneeCombobox
+          value={assigneeSearch}
+          onChange={setAssigneeSearch}
+          options={allAssigneeOptions}
+        />
         {selectedDeletableItems.length > 0 && (
           <button type="button" className="danger-icon text-button bulk-delete-button" onClick={() => void removeSelected()}>
             <Trash2 />
@@ -820,7 +1232,7 @@ export function DocumentsPage() {
                   type="checkbox"
                   aria-label="Chọn tất cả hồ sơ có thể xóa"
                   checked={allDeletableSelected}
-                  disabled={!deletableFilteredItems.length}
+                  disabled={!deletablePageItems.length}
                   onChange={toggleSelectAllDeletable}
                 />
               </th>
@@ -833,7 +1245,7 @@ export function DocumentsPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map((document) => {
+            {paginatedItems.map((document) => {
               const canEdit = document.created_by === user?.id
               const canDelete = isAdmin || document.created_by === user?.id
               return (
@@ -885,7 +1297,7 @@ export function DocumentsPage() {
           </tbody>
         </table>
         <div className="data-grid document-data-grid">
-          {filteredItems.map((document) => {
+          {paginatedItems.map((document) => {
             const canEdit = document.created_by === user?.id
             const canDelete = isAdmin || document.created_by === user?.id
             return (
@@ -936,6 +1348,16 @@ export function DocumentsPage() {
           })}
           {!filteredItems.length && <EmptyState message="Chưa có hồ sơ nào." />}
         </div>
+        <PaginationBar
+          currentPage={validCurrentPage}
+          totalPages={totalPages}
+          totalItems={filteredItems.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={(page) => {
+            setCurrentPage(page)
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+          }}
+        />
       </section>
 
       {/* Modal Tạo hồ sơ mới */}
@@ -1191,6 +1613,8 @@ export function DocumentsPage() {
                 <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--muted)' }}>Đang tải nội dung file...</div>
               ) : filePreview?.docxBuffer ? (
                 <DocxFilePreview data={filePreview.docxBuffer} />
+              ) : filePreview?.docText ? (
+                <DocFilePreview name={filePreview.name} text={filePreview.docText} />
               ) : filePreview?.url ? (
                 <iframe title={`Xem ${filePreview.name}`} src={filePreview.url} />
               ) : (

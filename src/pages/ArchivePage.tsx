@@ -13,6 +13,10 @@ const typeLabels: Record<string, string> = {
   khenthuong: 'Khen Thưởng',
   baocao: 'Báo Cáo',
   kehoach: 'Kế Hoạch',
+  xacnhan: 'Xác Nhận',
+  congvan: 'Công Văn',
+  thongbao: 'Thông Báo',
+  bienbanhop: 'Biên Bản Họp',
   banhanh: 'Ban Hành',
 }
 

@@ -1,4 +1,4 @@
-import { FileText, Hash, CheckCircle2, Send, Clock3, Stamp } from 'lucide-react'
+import { FileText, Hash, CheckCircle2, Send, Clock3, Stamp, BadgeCheck, Mail, Bell, ClipboardList, FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { EmptyState } from '../components/EmptyState'
@@ -15,17 +15,24 @@ const documentTypeList = [
   { key: 'khenthuong', label: 'Khen Thưởng', icon: CheckCircle2 },
   { key: 'baocao', label: 'Báo Cáo', icon: FileText },
   { key: 'kehoach', label: 'Kế Hoạch', icon: Clock3 },
+  { key: 'xacnhan', label: 'Xác Nhận', icon: BadgeCheck },
+  { key: 'congvan', label: 'Công Văn', icon: Mail },
+  { key: 'thongbao', label: 'Thông Báo', icon: Bell },
+  { key: 'bienbanhop', label: 'Biên Bản Họp', icon: ClipboardList },
 ]
 
 const filterList = [
+  { key: '', label: 'Tất cả hồ sơ', icon: FolderOpen },
+  { key: 'chuabanhanh', label: 'Chưa Ban Hành', icon: Clock3 },
   ...documentTypeList,
   { key: 'banhanh', label: 'Ban Hành', icon: Hash },
 ]
 
-const chartColors = ['#1E5FA8', '#4E9DB3', '#8DC7B2', '#F2C66D', '#D9865B', '#5F7F4D']
+const chartColors = ['#1E5FA8', '#4E9DB3', '#8DC7B2', '#F2C66D', '#D9865B', '#5F7F4D', '#845EC2', '#D65DB1', '#FF6F91', '#2C73D2']
 const matchesFilter = (document: DocumentRow, filter: string) => {
   if (!filter) return true
   if (filter === 'banhanh') return document.status === 'issued'
+  if (filter === 'chuabanhanh') return document.status !== 'issued'
   return document.type === filter
 }
 
@@ -179,7 +186,9 @@ export function StatisticsPage() {
   }, [scopedDocuments, yearColor])
 
   const chartTypeStats = useMemo(
-    () => typeFilter ? typeStats.filter(item => item.key === typeFilter) : typeStats.filter(item => item.key !== 'banhanh'),
+    () => typeFilter
+      ? typeStats.filter(item => item.key === typeFilter)
+      : typeStats.filter(item => item.key !== 'banhanh' && item.key !== '' && item.key !== 'chuabanhanh'),
     [typeFilter, typeStats]
   )
   const activeFilterLabel = filterList.find(item => item.key === typeFilter)?.label
@@ -232,7 +241,7 @@ export function StatisticsPage() {
       </section>
 
       {/* Cards theo loại hồ sơ */}
-      <section className="metric-grid" style={{ marginBottom: '1.5rem' }}>
+      <section className="metric-grid statistics-metrics-row" style={{ marginBottom: '1.5rem' }}>
         {filterList.map(({ key, label, icon: Icon }) => {
           const count = yearScopedDocuments.filter(d => matchesFilter(d, key)).length
           const active = typeFilter === key
