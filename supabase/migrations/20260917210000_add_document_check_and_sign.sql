@@ -9,3 +9,4 @@ alter table public.documents add column if not exists signed_at timestamptz;
 
 create index if not exists documents_is_checked_idx on public.documents(is_checked) where deleted_at is null;
 create index if not exists documents_is_signed_idx on public.documents(is_signed) where deleted_at is null;
+ 
