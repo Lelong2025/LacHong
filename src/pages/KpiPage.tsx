@@ -983,8 +983,8 @@ export function KpiPage() {
                   <span>Người thực hiện</span>
                   <b>{document.assignee_name || 'Chưa gán'}</b>
                 </div>
-                <div className="data-card-meta">
-                  <span>Đã check / Đã ký</span>
+                <div className="data-card-meta kpi-check-meta">
+                  <span style={{ fontWeight: 600 }}>Đã check / Đã ký:</span>
                   <div className="kpi-checkbox-group kpi-checkbox-group-inline">
                     <label className={`kpi-check-item ${document.is_checked ? 'checked' : ''}`}>
                       <input
@@ -1012,11 +1012,14 @@ export function KpiPage() {
                 </div>
                 <div className="row-actions record-row-actions document-row-actions data-card-actions">
                   <button
+                    type="button"
                     className="ghost compact"
                     title="Xem chi tiết"
                     onClick={() => handleViewDetail(document)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', width: 'auto', padding: '0 12px', height: '36px' }}
                   >
-                    <Eye />
+                    <Eye size={16} />
+                    <span>Xem chi tiết</span>
                   </button>
                 </div>
               </article>
@@ -1039,17 +1042,26 @@ export function KpiPage() {
 
       {/* MODAL XEM CHI TIẾT HỒ SƠ (FLOW: Người thực hiện -> Người check -> Người ký) */}
       {selectedDoc && (
-        <div className="modal-backdrop" onClick={() => setSelectedDoc(null)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '640px', width: '90%' }}>
-            <div className="modal-header">
+        <div className="modal" onClick={() => setSelectedDoc(null)}>
+          <div
+            className="modal-container-style"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '700px', width: '92%' }}
+          >
+            <div className="modal-form-header">
               <h2>Chi tiết hồ sơ</h2>
-              <button className="modal-close-btn" onClick={() => setSelectedDoc(null)} title="Đóng">
-                <X size={18} />
+              <button
+                type="button"
+                className="btn-close"
+                onClick={() => setSelectedDoc(null)}
+                title="Đóng"
+              >
+                <X />
               </button>
             </div>
 
             <div className="modal-form-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
+              <div className="kpi-modal-info-grid">
                 <div>
                   <small style={{ color: 'var(--muted)', display: 'block' }}>Ngày tạo</small>
                   <strong>{new Date(selectedDoc.created_at).toLocaleDateString('vi-VN')}</strong>
@@ -1204,7 +1216,7 @@ export function KpiPage() {
                           background: 'var(--bg-card)',
                         }}
                       >
-                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{file.name}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-main)', overflowWrap: 'anywhere' }}>{file.name}</span>
                         <button
                           type="button"
                           onClick={() => {
@@ -1213,7 +1225,7 @@ export function KpiPage() {
                             })
                           }}
                           className="btn-download ghost compact"
-                          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}
                         >
                           <Download size={15} /> Tải về
                         </button>
@@ -1224,8 +1236,12 @@ export function KpiPage() {
               </div>
             </div>
 
-            <div className="modal-actions" style={{ justifyContent: 'flex-end', marginTop: '16px' }}>
-              <button type="button" className="ghost" onClick={() => setSelectedDoc(null)}>
+            <div className="modal-form-footer">
+              <button
+                type="button"
+                className="btn-cancel"
+                onClick={() => setSelectedDoc(null)}
+              >
                 Đóng
               </button>
             </div>
