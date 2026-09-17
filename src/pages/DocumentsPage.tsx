@@ -1510,6 +1510,20 @@ export function DocumentsPage() {
                 )}
               </div>
 
+              {selectedDoc.is_checked && (
+                <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--bg-card, #f8fafc)', borderRadius: '6px' }}>
+                  <small style={{ color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Người check</small>
+                  <strong>{selectedDoc.checked_by || 'Lê Phương Long'}</strong>
+                </div>
+              )}
+
+              {selectedDoc.is_signed && (
+                <div style={{ marginBottom: '20px', padding: '12px', background: 'var(--bg-card, #f8fafc)', borderRadius: '6px' }}>
+                  <small style={{ color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Người ký</small>
+                  <strong>{selectedDoc.signed_by || 'Nguyễn Thanh Sơn'}</strong>
+                </div>
+              )}
+
               {selectedDoc.description && (
                 <div style={{ marginBottom: '20px' }}>
                   <small style={{ color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Nội dung chi tiết</small>

@@ -1013,6 +1013,58 @@ app.post('/api/save-document', requireUser, async (req, res) => {
   res.json({ ok: true, documentId })
 })
 
+app.post('/api/update-document-kpi', requireUser, async (req, res) => {
+  const currentUser = (req as AuthedRequest).user
+  if (!currentUser) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', currentUser.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    res.status(403).json({ error: 'Chỉ quản trị viên mới có quyền cập nhật KPI.' })
+    return
+  }
+
+  const documentId = String(req.body?.documentId ?? '').trim()
+  if (!documentId) {
+    res.status(400).json({ error: 'Thiếu mã hồ sơ.' })
+    return
+  }
+
+  const isChecked = Boolean(req.body?.isChecked)
+  const isSigned = Boolean(req.body?.isSigned)
+
+  const payload: Record<string, unknown> = {
+    is_checked: isChecked,
+    checked_by: isChecked ? 'Lê Phương Long' : null,
+    checked_at: isChecked ? new Date().toISOString() : null,
+    is_signed: isSigned,
+    signed_by: isSigned ? 'Nguyễn Thanh Sơn' : null,
+    signed_at: isSigned ? new Date().toISOString() : null,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { data, error } = await supabase
+    .from('documents')
+    .update(payload)
+    .eq('id', documentId)
+    .select('id, is_checked, checked_by, checked_at, is_signed, signed_by, signed_at, updated_at')
+    .single()
+
+  if (error) {
+    res.status(400).json({ error: error.message })
+    return
+  }
+
+  res.json({ ok: true, document: data })
+})
+
 app.post('/api/upload-document-file', requireUser, async (req, res) => {
   const currentUser = (req as AuthedRequest).user
   const documentId = String(req.body?.documentId ?? '')

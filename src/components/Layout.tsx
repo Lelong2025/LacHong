@@ -1,4 +1,4 @@
-import { BarChart3, FileText, LayoutDashboard, LogOut, Menu, Settings, Trash2, Users, X } from 'lucide-react'
+import { Award, BarChart3, FileText, LayoutDashboard, LogOut, Menu, Settings, Trash2, Users, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
@@ -12,7 +12,7 @@ const clientNav = [
 ] as const
 
 const adminNav = [
-  { label: 'Quản lý', items: [['/', 'Tổng quan', LayoutDashboard], ['/documents', 'Hồ sơ', FileText], ['/statistics', 'Thống kê', BarChart3], ['/users', 'Quản lý người dùng', Users]] },
+  { label: 'Quản lý', items: [['/', 'Tổng quan', LayoutDashboard], ['/documents', 'Hồ sơ', FileText], ['/kpi', 'KPI', Award], ['/statistics', 'Thống kê', BarChart3], ['/users', 'Quản lý người dùng', Users]] },
   { label: 'Hệ thống', items: [['/trash', 'Thùng rác', Trash2], ['/settings', 'Cài đặt', Settings]] },
 ] as const
 
