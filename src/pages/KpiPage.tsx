@@ -112,7 +112,162 @@ function base64ToBlob(contentBase64: string, mimeType: string) {
   for (let i = 0; i < binaryString.length; i += 1) {
     bytes[i] = binaryString.charCodeAt(i)
   }
-  return new Blob([bytes], { type: mimeType })
+  return new Blob([bytes], { type: mimeType || 'application/octet-stream' })
+}
+
+type FilePreview = {
+  name: string
+  mimeType: string
+  url: string | null
+  docxBuffer: ArrayBuffer | null
+  docText: string | null
+  message: string | null
+}
+
+function extractDocTextFallback(uint8: Uint8Array): string {
+  try {
+    const decoder16 = new TextDecoder('utf-16le', { fatal: false })
+    const full16 = decoder16.decode(uint8)
+    const cleanChunks: string[] = []
+    const rawLines = full16.split(/[\r\n]+/)
+    for (const line of rawLines) {
+      const cleaned = line.replace(/[^\x20-\x7E\u00A0-\u024F\u1EA0-\u1EF9]/g, ' ').replace(/\s+/g, ' ').trim()
+      if (cleaned.length >= 8 && !cleaned.includes('Microsoft Word') && !cleaned.startsWith('Root Entry')) {
+        cleanChunks.push(cleaned)
+      }
+    }
+    if (cleanChunks.length > 0) {
+      return cleanChunks.join('\n\n')
+    }
+
+    const decoder8 = new TextDecoder('windows-1252', { fatal: false })
+    const full8 = decoder8.decode(uint8)
+    const raw8 = full8.split(/[\r\n]+/)
+    for (const line of raw8) {
+      const cleaned = line.replace(/[^\x20-\x7E\u00A0-\u024F\u1EA0-\u1EF9]/g, ' ').replace(/\s+/g, ' ').trim()
+      if (cleaned.length >= 10 && !cleaned.startsWith('Root Entry')) {
+        cleanChunks.push(cleaned)
+      }
+    }
+    return cleanChunks.join('\n\n')
+  } catch (err) {
+    console.warn('extractDocTextFallback error:', err)
+    return ''
+  }
+}
+
+function DocFilePreview({ name, text }: { name: string; text: string }) {
+  const wordCount = useMemo(() => {
+    const trimmed = text.trim()
+    return trimmed ? trimmed.split(/\s+/).length : 0
+  }, [text])
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${name}</title>
+          <style>
+            body { font-family: 'Times New Roman', serif; font-size: 13pt; line-height: 1.6; padding: 40px; color: #111; }
+            pre { white-space: pre-wrap; font-family: inherit; }
+          </style>
+        </head>
+        <body>
+          <pre>${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
+  }
+
+  return (
+    <div className="doc-file-preview">
+      <div className="doc-preview-toolbar">
+        <div className="doc-preview-info">
+          <span>{name}</span>
+          <span style={{ opacity: 0.7, fontSize: '0.75rem' }}>({wordCount} từ)</span>
+        </div>
+        <button
+          type="button"
+          onClick={handlePrint}
+          style={{
+            background: 'rgba(255,255,255,0.15)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            color: '#fff',
+            borderRadius: '4px',
+            padding: '3px 10px',
+            fontSize: '0.75rem',
+            cursor: 'pointer',
+          }}
+        >
+          In nội dung
+        </button>
+      </div>
+      <div className="doc-preview-sheet">
+        {text ? (
+          <div>{text}</div>
+        ) : (
+          <div className="doc-preview-empty">
+            Không tìm thấy nội dung văn bản trong tệp .doc này. Bạn có thể tải file về để mở bằng Microsoft Word.
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DocxFilePreview({ data }: { data: ArrayBuffer }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [rendering, setRendering] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    container.replaceChildren()
+    setRendering(true)
+    setError('')
+    let cancelled = false
+
+    void import('docx-preview').then(({ renderAsync }) => {
+      if (cancelled) return
+      return renderAsync(data, container, undefined, {
+        className: 'docx-preview-page',
+        inWrapper: true,
+        ignoreWidth: false,
+        ignoreHeight: false,
+        ignoreFonts: false,
+        breakPages: true,
+        renderHeaders: true,
+        renderFooters: true,
+        renderFootnotes: true,
+        renderEndnotes: true,
+        useBase64URL: true,
+      })
+    }).then(() => {
+      if (!cancelled) setRendering(false)
+    }).catch((renderError) => {
+      if (cancelled) return
+      console.error('Không thể hiển thị file DOCX:', renderError)
+      setRendering(false)
+      setError('Không thể hiển thị file DOCX. Bạn có thể tải file về để mở.')
+    })
+
+    return () => { cancelled = true }
+  }, [data])
+
+  return (
+    <div className="docx-file-preview">
+      {rendering && <div className="file-preview-status">Đang dựng nội dung file...</div>}
+      {error && <div className="file-preview-status">{error}</div>}
+      <div ref={containerRef} />
+    </div>
+  )
 }
 
 function PaginationBar({
@@ -330,6 +485,8 @@ export function KpiPage() {
   const [selectedDoc, setSelectedDoc] = useState<DocumentRow | null>(null)
   const [docFiles, setDocFiles] = useState<{ id: string; name: string; object_path: string | null; file_kind: string }[]>([])
   const [loadingFiles, setLoadingFiles] = useState(false)
+  const [filePreview, setFilePreview] = useState<FilePreview | null>(null)
+  const [loadingPreview, setLoadingPreview] = useState(false)
 
   const PAGE_SIZE = 10
   const isAdmin = profile?.role === 'admin'
@@ -616,6 +773,111 @@ export function KpiPage() {
     if (blob.size === 0) throw new Error('File tải về đang rỗng.')
     downloadBlob(blob, payload.name)
   }
+
+  // Xem trực tiếp file đính kèm
+  async function previewDocumentFile(fileId: string) {
+    setLoadingPreview(true)
+    try {
+      const payload = await callBackend<{
+        ok: boolean
+        name: string
+        mimeType: string
+        contentBase64: string
+        docText?: string
+      }>('/api/download-document-file', { fileId })
+
+      const blob = base64ToBlob(payload.contentBase64, payload.mimeType)
+      if (blob.size === 0) throw new Error('File xem trước đang rỗng.')
+
+      const arrayBuffer = await blob.arrayBuffer()
+      const uint8 = new Uint8Array(arrayBuffer)
+      const isZipDocx = uint8.length >= 4 && uint8[0] === 0x50 && uint8[1] === 0x4B // 'PK'
+
+      if (/\.docx$/i.test(payload.name) || (/\.doc$/i.test(payload.name) && isZipDocx)) {
+        setFilePreview(current => {
+          if (current?.url) URL.revokeObjectURL(current.url)
+          return { name: payload.name, mimeType: payload.mimeType, url: null, docxBuffer: arrayBuffer, docText: null, message: null }
+        })
+        return
+      }
+
+      if (/\.doc$/i.test(payload.name)) {
+        let extractedText = payload.docText || ''
+        if (!extractedText) {
+          extractedText = extractDocTextFallback(uint8)
+        }
+
+        setFilePreview(current => {
+          if (current?.url) URL.revokeObjectURL(current.url)
+          return {
+            name: payload.name,
+            mimeType: payload.mimeType,
+            url: null,
+            docxBuffer: null,
+            docText: extractedText || 'Không tìm thấy nội dung văn bản trong tệp .doc này. Bạn có thể tải file về để mở bằng Microsoft Word.',
+            message: null,
+          }
+        })
+        return
+      }
+
+      const objectUrl = URL.createObjectURL(blob)
+      setFilePreview(current => {
+        if (current?.url) URL.revokeObjectURL(current.url)
+        return { name: payload.name, mimeType: payload.mimeType, url: objectUrl, docxBuffer: null, docText: null, message: null }
+      })
+    } catch (err) {
+      if (emitSessionExpired(err)) return
+      notify(err instanceof Error ? err.message : 'Không xem được file.', 'error')
+    } finally {
+      setLoadingPreview(false)
+    }
+  }
+
+  function closeFilePreview() {
+    setFilePreview(current => {
+      if (current?.url) URL.revokeObjectURL(current.url)
+      return null
+    })
+  }
+
+  useEffect(() => () => {
+    if (filePreview?.url) URL.revokeObjectURL(filePreview.url)
+  }, [filePreview?.url])
+
+  useEffect(() => {
+    if (!selectedDoc) return
+
+    const loadSelectedDocFiles = async () => {
+      setLoadingFiles(true)
+      try {
+        const { data, error: err } = await supabase
+          .from('document_files')
+          .select('id, name, object_path, file_kind')
+          .eq('document_id', selectedDoc.id)
+          .is('deleted_at', null)
+        if (err) throw err
+        setDocFiles((data || []) as { id: string; name: string; object_path: string | null; file_kind: string }[])
+      } catch (err) {
+        if (emitSessionExpired(err)) return
+        console.error('Lỗi khi tải file đính kèm:', err)
+      } finally {
+        setLoadingFiles(false)
+      }
+    }
+
+    const channel = supabase
+      .channel(`kpi-document-detail-files:${selectedDoc.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'document_files',
+        filter: `document_id=eq.${selectedDoc.id}`,
+      }, () => { void loadSelectedDocFiles() })
+      .subscribe()
+
+    return () => { void supabase.removeChannel(channel) }
+  }, [selectedDoc])
 
   // Xuất file Excel KPI
   function exportExcelFile() {
@@ -1203,34 +1465,59 @@ export function KpiPage() {
                   <p style={{ color: 'var(--muted)' }}>Không có tệp đính kèm nào.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
-                    {docFiles.map(file => (
-                      <div
-                        key={file.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '10px 12px',
-                          border: '1px solid var(--line)',
-                          borderRadius: '6px',
-                          background: 'var(--bg-card)',
-                        }}
-                      >
-                        <span style={{ fontWeight: 600, color: 'var(--text-main)', overflowWrap: 'anywhere' }}>{file.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void downloadDocumentFile(file.id).catch(err => {
-                              notify(err instanceof Error ? err.message : 'Không tải được file.', 'error')
-                            })
+                    {docFiles.map(file => {
+                      const isIssued = file.file_kind === 'issued_attachment'
+                      return (
+                        <div
+                          key={file.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '10px 12px',
+                            border: '1px solid var(--line)',
+                            borderRadius: '6px',
+                            background: isIssued ? 'rgba(8, 123, 56, 0.03)' : 'var(--bg-card)',
                           }}
-                          className="btn-download ghost compact"
-                          style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}
                         >
-                          <Download size={15} /> Tải về
-                        </button>
-                      </div>
-                    ))}
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <button
+                              type="button"
+                              onClick={() => void previewDocumentFile(file.id)}
+                              style={{
+                                border: 0,
+                                padding: 0,
+                                background: 'transparent',
+                                color: 'var(--blue)',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                textAlign: 'left',
+                                textDecoration: 'underline',
+                                textUnderlineOffset: '3px',
+                              }}
+                              title={`Xem trực tiếp ${file.name}`}
+                            >
+                              {file.name}
+                            </button>
+                            <span style={{ fontSize: '0.8rem', color: isIssued ? '#087b38' : 'var(--muted)' }}>
+                              {isIssued ? 'Tệp lưu trữ chính thức' : 'Tài liệu đính kèm'}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void downloadDocumentFile(file.id).catch(err => {
+                                notify(err instanceof Error ? err.message : 'Không tải được file.', 'error')
+                              })
+                            }}
+                            className="btn-download ghost compact"
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}
+                          >
+                            <Download size={15} /> Tải về
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -1244,6 +1531,51 @@ export function KpiPage() {
               >
                 Đóng
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL XEM TRỰC TIẾP TỆP ĐÍNH KÈM (DOCX, DOC, PDF, ẢNH, v.v.) */}
+      {(filePreview || loadingPreview) && (
+        <div className="modal file-preview-modal" style={{ zIndex: 1200 }}>
+          <div className="file-preview-shell">
+            <div className="modal-form-header">
+              <h2>{loadingPreview ? 'Đang mở file...' : filePreview?.name}</h2>
+              <button
+                type="button"
+                className="btn-close"
+                onClick={closeFilePreview}
+                disabled={loadingPreview}
+                aria-label="Đóng xem file"
+              >
+                <X />
+              </button>
+            </div>
+            <div className="file-preview-content">
+              {loadingPreview ? (
+                <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--muted)' }}>
+                  Đang tải nội dung file...
+                </div>
+              ) : filePreview?.docxBuffer ? (
+                <DocxFilePreview data={filePreview.docxBuffer} />
+              ) : filePreview?.docText ? (
+                <DocFilePreview name={filePreview.name} text={filePreview.docText} />
+              ) : filePreview?.url ? (
+                <iframe title={`Xem ${filePreview.name}`} src={filePreview.url} />
+              ) : (
+                <div
+                  style={{
+                    height: '100%',
+                    display: 'grid',
+                    placeItems: 'center',
+                    padding: '32px',
+                    textAlign: 'center',
+                    color: 'var(--muted)',
+                  }}
+                >
+                  {filePreview?.message}
+                </div>
+              )}
             </div>
           </div>
         </div>
