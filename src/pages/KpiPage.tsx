@@ -16,6 +16,8 @@ import {
   ClipboardList,
   Newspaper,
   UserCheck,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
@@ -421,7 +423,7 @@ function AssigneeCombobox({
           value={query}
           onChange={e => handleInputChange(e.target.value)}
           onFocus={() => setOpen(true)}
-          placeholder="Tìm người thực hiện..."
+          placeholder="Tìm người thực hiện (tên, email)..."
           className="combobox-search-input"
         />
         {query && (
@@ -431,35 +433,67 @@ function AssigneeCombobox({
             onClick={handleClear}
             title="Xóa tìm kiếm"
           >
-            <X size={14} />
+            <X size={15} />
           </button>
         )}
+        <button
+          type="button"
+          className="combobox-toggle-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen(o => !o)
+          }}
+          title="Danh sách người thực hiện"
+        >
+          <ChevronDown size={15} />
+        </button>
       </div>
+
       {open && (
-        <div className="assignee-combobox-dropdown">
-          <div
-            className={`assignee-combobox-option ${!value ? 'is-selected' : ''}`}
+        <div className="assignee-combobox-menu">
+          <button
+            type="button"
+            className={`combobox-option-item ${!value ? 'is-active' : ''}`}
             onClick={() => handleSelect('')}
           >
             <span className="option-name">Tất cả người thực hiện</span>
+            {!value && <Check size={14} className="option-check" />}
+          </button>
+          <button
+            type="button"
+            className={`combobox-option-item ${value === 'Chưa gán' ? 'is-active' : ''}`}
+            onClick={() => handleSelect('Chưa gán')}
+          >
+            <span className="option-name">Chưa gán người thực hiện</span>
+            {value === 'Chưa gán' && <Check size={14} className="option-check" />}
+          </button>
+
+          {filtered.length > 0 && <div className="combobox-menu-divider" />}
+
+          <div className="combobox-option-scroll">
+            {filtered.map(opt => {
+              const isSelected = value.toLowerCase() === opt.email.toLowerCase() || (Boolean(opt.full_name) && value.toLowerCase() === opt.full_name?.toLowerCase())
+              return (
+                <button
+                  type="button"
+                  key={opt.email}
+                  className={`combobox-option-item ${isSelected ? 'is-active' : ''}`}
+                  onClick={() => handleSelect(opt.email)}
+                >
+                  <div className="option-text">
+                    <span className="option-name">{opt.full_name || opt.email}</span>
+                    <span className="option-email">{opt.email}</span>
+                  </div>
+                  {isSelected && <Check size={14} className="option-check" />}
+                </button>
+              )
+            })}
           </div>
-          {filtered.map(opt => {
-            const isSelected = value === opt.email || value === opt.full_name
-            return (
-              <div
-                key={opt.email}
-                className={`assignee-combobox-option ${isSelected ? 'is-selected' : ''}`}
-                onClick={() => handleSelect(opt.email)}
-              >
-                <div className="option-content">
-                  <span className="option-name">{opt.full_name || opt.email}</span>
-                  {opt.full_name && <small className="option-email">{opt.email}</small>}
-                </div>
-              </div>
-            )
-          })}
+
           {filtered.length === 0 && (
-            <div className="assignee-combobox-empty">Không tìm thấy người thực hiện.</div>
+            <div className="combobox-menu-empty">
+              Không tìm thấy người thực hiện theo "{query}".
+            </div>
           )}
         </div>
       )}
@@ -596,8 +630,8 @@ export function KpiPage() {
 
       // Tìm kiếm theo người thực hiện
       if (assigneeLower) {
-        if (!doc.assignee_name) return false
-        const assigneeMatch = doc.assignee_name.toLowerCase().includes(assigneeLower)
+        const assigneeDisplay = doc.assignee_name || 'Chưa gán'
+        const assigneeMatch = assigneeDisplay.toLowerCase().includes(assigneeLower)
         if (!assigneeMatch) return false
       }
 
