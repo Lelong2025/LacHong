@@ -1,4 +1,4 @@
-import { Eye, FilePlus2, Search, Trash2, UploadCloud, X, Send, Stamp, CheckCircle2, FileText, Clock3, Hash, FolderOpen, Download, Pencil, BadgeCheck, Mail, Bell, ClipboardList, UserCheck, Check, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Eye, FilePlus2, Search, Trash2, UploadCloud, X, Send, Stamp, CheckCircle2, FileText, Clock3, Hash, FolderOpen, Download, Pencil, BadgeCheck, Mail, Bell, ClipboardList, Newspaper, UserCheck, Check, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, useMemo, type FormEvent } from 'react'
 import * as XLSX from 'xlsx'
 import { useAuth } from '../contexts/AuthContext'
@@ -22,6 +22,7 @@ const documentTypeLabels: Record<string, string> = {
   congvan: 'Công Văn',
   thongbao: 'Thông Báo',
   bienbanhop: 'Biên Bản Họp',
+  duatin: 'Đưa Tin',
 }
 
 const labels: Record<string, string> = {
@@ -1128,6 +1129,7 @@ export function DocumentsPage() {
     { key: 'congvan', label: 'Công Văn', icon: Mail },
     { key: 'thongbao', label: 'Thông Báo', icon: Bell },
     { key: 'bienbanhop', label: 'Biên Bản Họp', icon: ClipboardList },
+    { key: 'duatin', label: 'Đưa Tin', icon: Newspaper },
     { key: 'banhanh', label: 'Ban Hành', icon: Hash },
   ]
   const typeSelectDefault = editingDoc?.type && documentTypeLabels[editingDoc.type]

@@ -1,4 +1,4 @@
-import { FileText, Hash, CheckCircle2, Send, Clock3, Stamp, BadgeCheck, Mail, Bell, ClipboardList, FolderOpen } from 'lucide-react'
+import { FileText, Hash, CheckCircle2, Send, Clock3, Stamp, BadgeCheck, Mail, Bell, ClipboardList, Newspaper, FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { EmptyState } from '../components/EmptyState'
@@ -19,6 +19,7 @@ const documentTypeList = [
   { key: 'congvan', label: 'Công Văn', icon: Mail },
   { key: 'thongbao', label: 'Thông Báo', icon: Bell },
   { key: 'bienbanhop', label: 'Biên Bản Họp', icon: ClipboardList },
+  { key: 'duatin', label: 'Đưa Tin', icon: Newspaper },
 ]
 
 const filterList = [

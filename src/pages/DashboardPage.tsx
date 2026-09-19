@@ -1,4 +1,4 @@
-import { Archive, CheckCircle2, Clock3, FileText, Hash, Send, Stamp, BadgeCheck, Mail, Bell, ClipboardList, TrendingUp } from 'lucide-react'
+import { Archive, CheckCircle2, Clock3, FileText, Hash, Send, Stamp, BadgeCheck, Mail, Bell, ClipboardList, Newspaper, TrendingUp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../components/EmptyState'
 import { DataViewToggle, type DataViewMode } from '../components/DataViewToggle'
@@ -19,6 +19,7 @@ const documentTypeLabels: Record<string, string> = {
   congvan: 'Công Văn',
   thongbao: 'Thông Báo',
   bienbanhop: 'Biên Bản Họp',
+  duatin: 'Đưa Tin',
 }
 
 const groupLabels: Record<string, string> = {
@@ -36,6 +37,7 @@ const typeIcons: Record<string, typeof FileText> = {
   congvan: Mail,
   thongbao: Bell,
   bienbanhop: ClipboardList,
+  duatin: Newspaper,
   banhanh: Hash,
 }
 

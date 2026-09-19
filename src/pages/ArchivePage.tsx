@@ -17,6 +17,7 @@ const typeLabels: Record<string, string> = {
   congvan: 'Công Văn',
   thongbao: 'Thông Báo',
   bienbanhop: 'Biên Bản Họp',
+  duatin: 'Đưa Tin',
   banhanh: 'Ban Hành',
 }
 
