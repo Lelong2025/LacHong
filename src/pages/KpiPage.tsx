@@ -14,6 +14,7 @@ import {
   Mail,
   Bell,
   ClipboardList,
+  Newspaper,
   UserCheck,
   ChevronLeft,
   ChevronRight,
@@ -44,6 +45,7 @@ const documentTypeLabels: Record<string, string> = {
   congvan: 'Công Văn',
   thongbao: 'Thông Báo',
   bienbanhop: 'Biên Bản Họp',
+  duatin: 'Đưa Tin',
 }
 
 const labels: Record<string, string> = {
@@ -930,6 +932,7 @@ export function KpiPage() {
     { key: 'congvan', label: 'Công Văn', icon: Mail },
     { key: 'thongbao', label: 'Thông Báo', icon: Bell },
     { key: 'bienbanhop', label: 'Biên Bản Họp', icon: ClipboardList },
+    { key: 'duatin', label: 'Đưa Tin', icon: Newspaper },
     { key: 'banhanh', label: 'Ban Hành', icon: Hash },
   ]
 
