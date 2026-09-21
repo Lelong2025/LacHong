@@ -274,6 +274,7 @@ const documentTypeLabels: Record<string, string> = {
   congvan: 'Công Văn',
   thongbao: 'Thông Báo',
   bienbanhop: 'Biên Bản Họp',
+  duatin: 'Đưa Tin',
 }
 
 function buildAssignmentMailHtml(params: { assigneeName: string; documentTitle: string; documentType: string }) {
@@ -918,7 +919,7 @@ app.post('/api/save-document', requireUser, async (req, res) => {
     return
   }
 
-  const allowedTypes = new Set(['totrinh', 'quyetdinh', 'khenthuong', 'baocao', 'kehoach', 'xacnhan', 'congvan', 'thongbao', 'bienbanhop'])
+  const allowedTypes = new Set(['totrinh', 'quyetdinh', 'khenthuong', 'baocao', 'kehoach', 'xacnhan', 'congvan', 'thongbao', 'bienbanhop', 'duatin'])
   const documentType = String(document.type ?? '')
   const title = String(document.title ?? '').trim()
   const description = String(document.description ?? '').trim()
