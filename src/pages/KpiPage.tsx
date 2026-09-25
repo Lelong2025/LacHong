@@ -30,6 +30,7 @@ import * as XLSX from 'xlsx'
 import { useAuth } from '../contexts/AuthContext'
 import { useNotifier } from '../contexts/useNotifier'
 import { EmptyState } from '../components/EmptyState'
+import { FileIconBadge } from '../components/ListFileDoc'
 import { DataViewToggle, type DataViewMode } from '../components/DataViewToggle'
 import { CustomSelect } from '../components/CustomSelect'
 import { supabase } from '../lib/supabase'
@@ -125,6 +126,8 @@ type FilePreview = {
   url: string | null
   docxBuffer: ArrayBuffer | null
   docText: string | null
+  excelSheets?: { name: string; rows: (string | number | null)[][] }[] | null
+  isImage?: boolean
   message: string | null
 }
 
@@ -270,6 +273,107 @@ function DocxFilePreview({ data }: { data: ArrayBuffer }) {
       {rendering && <div className="file-preview-status">Đang dựng nội dung file...</div>}
       {error && <div className="file-preview-status">{error}</div>}
       <div ref={containerRef} />
+    </div>
+  )
+}
+
+function ExcelFilePreview({ sheets }: { sheets: { name: string; rows: (string | number | null)[][] }[] }) {
+  const [activeSheetIndex, setActiveSheetIndex] = useState(0)
+
+  if (!sheets || sheets.length === 0) {
+    return <div style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)' }}>Không có dữ liệu trong bảng tính này.</div>
+  }
+
+  const currentSheet = sheets[activeSheetIndex] || sheets[0]
+  const rows = currentSheet.rows || []
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff', borderRadius: '8px', overflow: 'hidden' }}>
+      {sheets.length > 1 && (
+        <div style={{ display: 'flex', gap: '6px', padding: '10px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', overflowX: 'auto', flexShrink: 0 }}>
+          {sheets.map((s, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => setActiveSheetIndex(idx)}
+              style={{
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: idx === activeSheetIndex ? 600 : 500,
+                color: idx === activeSheetIndex ? '#16a34a' : '#64748b',
+                background: idx === activeSheetIndex ? '#fff' : 'transparent',
+                border: '1px solid',
+                borderColor: idx === activeSheetIndex ? '#86efac' : 'transparent',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                boxShadow: idx === activeSheetIndex ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+              }}
+            >
+              📊 {s.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
+        {rows.length === 0 ? (
+          <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8' }}>Trang tính này không có nội dung.</div>
+        ) : (
+          <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '13px', background: '#fff' }}>
+              <tbody>
+                {rows.slice(0, 300).map((row, rIdx) => (
+                  <tr key={rIdx} style={{ background: rIdx === 0 ? '#f8fafc' : rIdx % 2 === 0 ? '#ffffff' : '#fcfcfd' }}>
+                    <td style={{ width: '45px', padding: '6px 8px', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', background: '#f1f5f9', color: '#64748b', fontSize: '11px', textAlign: 'center', userSelect: 'none', fontWeight: 600 }}>
+                      {rIdx + 1}
+                    </td>
+                    {Array.isArray(row) && row.map((cell, cIdx) => (
+                      <td
+                        key={cIdx}
+                        style={{
+                          padding: '7px 12px',
+                          borderRight: '1px solid #e2e8f0',
+                          borderBottom: '1px solid #e2e8f0',
+                          fontWeight: rIdx === 0 ? 600 : 400,
+                          color: rIdx === 0 ? '#0f172a' : '#334155',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {cell !== null && cell !== undefined ? String(cell) : ''}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {rows.length > 300 && (
+              <div style={{ padding: '10px', textAlign: 'center', fontSize: '12px', color: '#64748b', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+                Hiển thị trước 300 dòng đầu tiên. Vui lòng tải file về để xem toàn bộ bảng tính.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ImageFilePreview({ url, name }: { url: string; name: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '350px', padding: '20px', background: 'rgba(15, 23, 42, 0.03)', borderRadius: '8px' }}>
+      <img
+        src={url}
+        alt={name}
+        style={{
+          maxWidth: '100%',
+          maxHeight: '75vh',
+          objectFit: 'contain',
+          borderRadius: '8px',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+          background: '#fff',
+        }}
+      />
     </div>
   )
 }
@@ -855,6 +959,33 @@ export function KpiPage() {
           }
         })
         return
+      }
+
+      if (/\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(payload.name) || payload.mimeType.startsWith('image/')) {
+        const objectUrl = URL.createObjectURL(blob)
+        setFilePreview(current => {
+          if (current?.url) URL.revokeObjectURL(current.url)
+          return { name: payload.name, mimeType: payload.mimeType, url: objectUrl, docxBuffer: null, docText: null, isImage: true, excelSheets: null, message: null }
+        })
+        return
+      }
+
+      if (/\.(xlsx?|csv)$/i.test(payload.name) || payload.mimeType.includes('spreadsheet') || payload.mimeType.includes('excel') || payload.mimeType === 'text/csv') {
+        try {
+          const wb = XLSX.read(arrayBuffer, { type: 'array' })
+          const sheets = wb.SheetNames.map(sheetName => {
+            const ws = wb.Sheets[sheetName]
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as (string | number | null)[][]
+            return { name: sheetName, rows }
+          })
+          setFilePreview(current => {
+            if (current?.url) URL.revokeObjectURL(current.url)
+            return { name: payload.name, mimeType: payload.mimeType, url: null, docxBuffer: null, docText: null, isImage: false, excelSheets: sheets, message: null }
+          })
+          return
+        } catch (excelErr) {
+          console.warn('Lỗi đọc bảng tính Excel:', excelErr)
+        }
       }
 
       const objectUrl = URL.createObjectURL(blob)
@@ -1517,28 +1648,31 @@ export function KpiPage() {
                             background: isIssued ? 'rgba(8, 123, 56, 0.03)' : 'var(--bg-card)',
                           }}
                         >
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <button
-                              type="button"
-                              onClick={() => void previewDocumentFile(file.id)}
-                              style={{
-                                border: 0,
-                                padding: 0,
-                                background: 'transparent',
-                                color: 'var(--blue)',
-                                cursor: 'pointer',
-                                fontWeight: 600,
-                                textAlign: 'left',
-                                textDecoration: 'underline',
-                                textUnderlineOffset: '3px',
-                              }}
-                              title={`Xem trực tiếp ${file.name}`}
-                            >
-                              {file.name}
-                            </button>
-                            <span style={{ fontSize: '0.8rem', color: isIssued ? '#087b38' : 'var(--muted)' }}>
-                              {isIssued ? 'Tệp lưu trữ chính thức' : 'Tài liệu đính kèm'}
-                            </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <FileIconBadge name={file.name} kind={file.file_kind} size={20} />
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <button
+                                type="button"
+                                onClick={() => void previewDocumentFile(file.id)}
+                                style={{
+                                  border: 0,
+                                  padding: 0,
+                                  background: 'transparent',
+                                  color: 'var(--blue)',
+                                  cursor: 'pointer',
+                                  fontWeight: 600,
+                                  textAlign: 'left',
+                                  textDecoration: 'underline',
+                                  textUnderlineOffset: '3px',
+                                }}
+                                title={`Xem trực tiếp ${file.name}`}
+                              >
+                                {file.name}
+                              </button>
+                              <span style={{ fontSize: '0.8rem', color: isIssued ? '#087b38' : 'var(--muted)' }}>
+                                {isIssued ? 'Tệp lưu trữ chính thức' : 'Tài liệu đính kèm'}
+                              </span>
+                            </div>
                           </div>
                           <button
                             type="button"
@@ -1597,6 +1731,10 @@ export function KpiPage() {
                 <DocxFilePreview data={filePreview.docxBuffer} />
               ) : filePreview?.docText ? (
                 <DocFilePreview name={filePreview.name} text={filePreview.docText} />
+              ) : filePreview?.isImage && filePreview.url ? (
+                <ImageFilePreview url={filePreview.url} name={filePreview.name} />
+              ) : filePreview?.excelSheets ? (
+                <ExcelFilePreview sheets={filePreview.excelSheets} />
               ) : filePreview?.url ? (
                 <iframe title={`Xem ${filePreview.name}`} src={filePreview.url} />
               ) : (
@@ -1610,7 +1748,7 @@ export function KpiPage() {
                     color: 'var(--muted)',
                   }}
                 >
-                  {filePreview?.message}
+                  {filePreview?.message || 'Không thể xem trước tệp này.'}
                 </div>
               )}
             </div>
